@@ -2,6 +2,34 @@
 
 AIDAWをプラグインの入ったマシンで常駐プロセスとして起動し、別のマシンのCodex / Claude CodeからStreamable HTTP MCPで操作できる。ローカルstdioとHTTPは同じ `createMcpServer` / `Service` / ネイティブエンジンを使う。処理の別実装やクライアント側の遅延修正はない。
 
+## WindowsサーバーをMacのCodexから使う
+
+WindowsとMacが同じTailscale tailnetへ接続済みなら、Windows側で次を実行する。先に通常セットアップを完了し、同じAIDAW_HOMEを使うCodex / Claude Codeのstdioサーバーを終了しておく。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-remote-windows.ps1 -EnableTailscaleServe
+```
+
+このスクリプトは次を行う。
+
+- 64桁のランダムなトークンを生成し、`AIDAW_HOME\Server.aidaw\config\http.env` を現在のWindowsユーザーとSYSTEMだけが読めるようにする。既存の正しいトークンは再利用し、`-RotateToken` 指定時だけ更新する。
+- HTTP本体を `127.0.0.1` だけで起動し、ログオン時に非表示で起動・異常終了時に再起動するユーザータスクを登録する。
+- Windows側のプロジェクト用Codex設定を同じloopback HTTPへ切り替え、stdioと常駐HTTPによるAIDAW_HOMEの二重所有を防ぐ。Codexの再起動後に反映される。
+- `-EnableTailscaleServe` 指定時は、既存の別用途のroot proxyを上書きせず、tailnet内限定のHTTPS URLを作る。初回にTailscale管理画面の有効化が求められた場合は、表示URLで許可して同じコマンドを再実行する。
+- 認証付き `/health` が成功しなければ完了としない。トークン自体は標準出力へ表示しない。
+
+停止済みPIDの `server.lock` が残っている場合だけ、状態を確認して `-RecoverStaleLock` を追加する。所有PIDが動作中ならスクリプトは削除せず停止する。別データ保存先、ポート、タスク名は `-DataDir`、`-Port`、`-TaskName` で指定できる。Codex設定を変更しないサーバー専用機では `-SkipCodexConfig` を使う。
+
+Macにはリポジトリ全体、VST3、音源、ネイティブエンジンは不要。`scripts/configure-remote-macos.sh` だけを安全な経路で渡し、Windowsの環境ファイルにあるトークンもTaildrop等で別途安全に受け渡す。トークンをチャット、Git、シェル履歴へ貼らない。
+
+```sh
+zsh configure-remote-macos.sh --url https://WINDOWS-NODE.TAILNET-NAME.ts.net/mcp
+```
+
+スクリプトはトークンを非表示で読み、macOS Keychainへ保存する。Codexの `~/.codex/config.toml` にはトークンではなくKeychainを読む `http_headers_helper` を登録し、変更前ファイルをバックアップする。Codexを完全終了して開き直し、`/mcp` で既定名 `aidaw_windows` を確認する。別名は `--name` で指定できる。
+
+Tailscale Serveを使う場合、AIDAWはWindows FirewallやLANへ8787番を直接公開しない。tailnet外へ公開するTailscale Funnelはこの手順では使わない。
+
 ## サーバー側
 
 1. `node scripts/setup.mjs --client none` で本体をビルドする。
@@ -32,7 +60,7 @@ node --env-file=/absolute/path/to/server.env dist/http.js
 npm run start:http
 ```
 
-起動中はクライアントとは独立して動く。クライアント切断ではジョブを取り消さない。サーバープロセス終了では処理中ジョブをキャンセルする。OS起動時の自動登録・クラッシュ後の自動再開はこの実装に含めない。
+起動中はクライアントとは独立して動く。クライアント切断ではジョブを取り消さない。サーバープロセス終了では処理中ジョブをキャンセルする。HTTP本体はOS起動登録を行わない。Windowsでは上記の `setup-remote-windows.ps1` がログオンタスクとクラッシュ後の再起動を設定する。他OSではサービスマネージャーを別途設定する。
 
 ## 接続経路
 
