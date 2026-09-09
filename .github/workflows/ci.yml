@@ -12,11 +12,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   acceptance:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    name: acceptance (macos-latest)
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -25,19 +22,15 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Install FFmpeg (macOS)
-        if: runner.os == 'macOS'
+      - name: Install FFmpeg
         run: brew install ffmpeg
-      - name: Install FFmpeg (Windows)
-        if: runner.os == 'Windows'
-        run: choco install ffmpeg --no-progress -y
       - run: node scripts/setup.mjs --client both
       - run: npm run check:public
       - run: npm test
       - run: npm run demo
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: aidaw-${{ matrix.os }}-preview
+          name: aidaw-macos-preview
           path: |
             build/bin/
             dist/

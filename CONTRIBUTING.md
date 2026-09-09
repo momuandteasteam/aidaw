@@ -39,5 +39,5 @@ plug-in case instead of checking in vendor binaries or plug-in state.
   is intentionally ignored because product versions and program names can
   identify a workstation or disclose user-created names.
 
-The `main` branch should require the macOS and Windows acceptance jobs before a
-change is merged.
+The `main` branch requires the macOS acceptance job before a change is merged.
+Windows acceptance is recorded separately when it is run on a Windows machine.
