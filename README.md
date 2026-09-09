@@ -1,5 +1,7 @@
 # AIDAW
 
+![AIDAWのシステム概要。利用者がCodexなどのAIエージェントへ会話で指示し、AIDAWがMCPとAPIを通じてVST3・AU音源、ミキサー、音声処理を操作し、WAV・パート別音声・MIDI・プロジェクトを返す流れ](docs/assets/aidaw-system-overview.png)
+
 Codex / Claude CodeなどからMCPで操作する、GUIのない音楽制作エンジン。TypeScriptの制御層とC++20 / JUCEのオーディオエンジンで、VST3 / AUを実際に鳴らして書き出します。
 
 > **開発版（0.1.0）**：macOS arm64で実機検証済み。WindowsはCIでビルドと受け入れテストを行いますが、商用プラグインを含む実機検証は未完了です。互換性を保証する安定版ではありません。
