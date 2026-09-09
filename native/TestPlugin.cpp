@@ -11,7 +11,7 @@ public:
     }
     const juce::String getName() const override { return JucePlugin_Name; }
     void prepareToPlay(double rate, int) override {
-        sr = rate; phase = 0; active = false; cursor = 0;
+        sr = rate; phase = 0; active = false; cursor = 0; processingBlock = 0;
         configuredLatency = latency->get(); setLatencySamples(configuredLatency);
         delay.setSize(2, std::max(1, configuredLatency)); delay.clear();
     }
@@ -36,6 +36,12 @@ public:
         }
     }
     void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override {
+        // Model stricter third-party VST3s which require a stable process block size.
+        // Returning a non-finite sample makes the host regression observable in tests.
+        if (processingBlock == 0) processingBlock = buffer.getNumSamples();
+        else if (processingBlock != buffer.getNumSamples()) {
+            buffer.clear(); buffer.setSample(0, 0, std::numeric_limits<float>::quiet_NaN()); return;
+        }
 #if AIDAW_TEST_EFFECT
         juce::ignoreUnused(midi); buffer.applyGain(gain->get());
 #else
@@ -66,7 +72,7 @@ private:
     juce::AudioParameterFloat* gain{};
     juce::AudioParameterInt* latency{};
     juce::AudioBuffer<float> delay;
-    int configuredLatency = 0, cursor = 0;
+    int configuredLatency = 0, cursor = 0, processingBlock = 0;
     double sr = 48000, phase = 0, frequency = 440;
     bool active = false;
     int note = 60;
