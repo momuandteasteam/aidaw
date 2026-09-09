@@ -50,6 +50,8 @@ npm run setup -- --client both
 4. ローカルライブラリの登録パス検出と、上限付きパッチ索引作成。市販音源の一括ロード・音色の試聴はしない。
 5. 検証後、選んだクライアントのプロジェクト設定を作成・更新。
 
+Windowsでクローン先に日本語などの非ASCII文字が含まれる場合、MSBuild/JUCEの補助コマンドがパスをCP932で壊さないよう、`%LOCALAPPDATA%\AIDAW\native-workspaces\<hash>` にネイティブビルド入力を同期してビルドする。成果物はクローン先の `build` ジャンクションからも参照でき、MCP設定の `AIDAW_ENGINE` には実体の絶対パスを保存する。TypeScript、作品データ、MCP設定はクローン先に残る。
+
 | クライアント | 生成先 |
 |---|---|
 | Codex | `.codex/config.toml` |

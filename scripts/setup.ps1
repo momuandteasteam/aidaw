@@ -2,7 +2,9 @@
 $ErrorActionPreference = 'Stop'
 $AidawRoot = Split-Path $PSScriptRoot -Parent
 function Refresh-AidawPath {
-  $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
+  $AidawMachinePath = [Environment]::GetEnvironmentVariable('Path','Machine')
+  $AidawUserPath = [Environment]::GetEnvironmentVariable('Path','User')
+  $env:Path = "$AidawMachinePath;$AidawUserPath;$env:Path"
 }
 function Install-AidawPackage([string]$Id, [string[]]$Extra = @()) {
   if (!(Get-Command winget -ErrorAction SilentlyContinue)) { throw "winget is required to install $Id. Install Windows App Installer or the missing dependency, then rerun." }
@@ -10,9 +12,13 @@ function Install-AidawPackage([string]$Id, [string[]]$Extra = @()) {
   if ($LASTEXITCODE -ne 0) { throw "Installer failed for $Id ($LASTEXITCODE). Resolve the installer error and rerun." }
   Refresh-AidawPath
 }
+Refresh-AidawPath
 if (!(Get-Command node -ErrorAction SilentlyContinue)) { Install-AidawPackage 'OpenJS.NodeJS.LTS' }
-& node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=13)?0:1)'
-if ($LASTEXITCODE -ne 0) { throw 'Node >=22.13 required. Upgrade Node.js LTS and rerun.' }
+$AidawNodeVersionText = (& node --version).Trim().TrimStart('v')
+$AidawNodeVersion = $null
+if (![version]::TryParse($AidawNodeVersionText, [ref]$AidawNodeVersion) -or $AidawNodeVersion -lt [version]'22.13.0') {
+  throw "Node >=22.13 required. Found '$AidawNodeVersionText'. Upgrade Node.js LTS and rerun."
+}
 if (!(Get-Command cmake -ErrorAction SilentlyContinue)) { Install-AidawPackage 'Kitware.CMake' }
 if (!(Get-Command cmake -ErrorAction SilentlyContinue)) {
   $AidawCmake = Join-Path $env:ProgramFiles 'CMake\bin'

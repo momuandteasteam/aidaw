@@ -1,10 +1,10 @@
 // Dependency-free entrypoint: npm ci runs before the config parser is imported.
 import {spawnSync} from 'node:child_process';
-import {access,realpath,mkdir,writeFile,readFile,mkdtemp,rm} from 'node:fs/promises';
+import {access,realpath,mkdir,writeFile,copyFile,cp,lstat,unlink,symlink,mkdtemp,rm} from 'node:fs/promises';
 import {join,resolve,dirname,delimiter} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {tmpdir,cpus} from 'node:os';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const argv=process.argv.slice(2);let client='both',dataDir=join(root,'.aidaw'),configureOnly=false,check=false;
 for(let i=0;i<argv.length;i++){
@@ -30,6 +30,32 @@ function locate(name){
  for(const dir of dirs){const path=join(dir,process.platform==='win32'?`${name}.exe`:name);const r=spawnSync(path,[name==='ffmpeg'||name==='ffprobe'?'-version':'--version'],{stdio:'ignore'});if(!r.error&&r.status===0)return path;}
  return null;
 }
+async function prepareNativeWorkspace(sourceRoot){
+ if(process.platform!=='win32'||!/[\x80-\uffff]/.test(sourceRoot))return {cmakeRoot:sourceRoot,buildRoot:join(sourceRoot,'build')};
+ const workspaceBase=join(process.env.LOCALAPPDATA??tmpdir(),'AIDAW','native-workspaces');
+ if(/[\x80-\uffff]/.test(workspaceBase))throw Error(`Windows native builds require an ASCII workspace. Set LOCALAPPDATA to an ASCII-only path and retry: ${workspaceBase}`);
+ const workspace=join(workspaceBase,createHash('sha256').update(sourceRoot.toLowerCase()).digest('hex').slice(0,16));
+ await mkdir(workspace,{recursive:true});
+ await copyFile(join(sourceRoot,'CMakeLists.txt'),join(workspace,'CMakeLists.txt'));
+ await rm(join(workspace,'native'),{recursive:true,force:true});
+ await cp(join(sourceRoot,'native'),join(workspace,'native'),{recursive:true,force:true});
+ console.log(`[setup] Using ASCII native workspace for the Windows build: ${workspace}`);
+ return {cmakeRoot:workspace,buildRoot:join(workspace,'build')};
+}
+async function exposeBuildRoot(sourceRoot,buildRoot){
+ const visible=join(sourceRoot,'build');
+ if(resolve(visible).toLowerCase()===resolve(buildRoot).toLowerCase())return visible;
+ await mkdir(buildRoot,{recursive:true});
+ try{
+  const [actual,target]=await Promise.all([realpath(visible),realpath(buildRoot)]);
+  if(actual.toLowerCase()===target.toLowerCase())return visible;
+  const stat=await lstat(visible);
+  if(stat.isSymbolicLink())await unlink(visible);else await rm(visible,{recursive:true,force:true});
+ }catch(error){if(error?.code!=='ENOENT')throw error;}
+ await symlink(buildRoot,visible,'junction');
+ console.log(`[setup] Exposed native outputs at the repository build path: ${visible}`);
+ return visible;
+}
 const paths={cmake:locate('cmake'),ffmpeg:locate('ffmpeg'),ffprobe:locate('ffprobe')};
 const missing=Object.entries(paths).filter(([,v])=>!v).map(([k])=>k);
 if(missing.length)throw Error(`Missing ${missing.join(', ')}. Run scripts/setup.sh (Mac) or scripts/setup.ps1 (Windows), then retry.`);
@@ -42,26 +68,30 @@ const report={state:'running',started_at:new Date().toISOString(),root,client,jo
 const record=async()=>{await writeFile(join(job,'report.json'),JSON.stringify(report,null,2));await writeFile(join(base,'state','last-setup.json'),JSON.stringify(report,null,2));};
 await record();
 try{
+ const {cmakeRoot,buildRoot}=await prepareNativeWorkspace(root);const cmakeBuildRoot=buildRoot;
+ report.cmake_root=cmakeRoot;report.build_root=buildRoot;
  const {installStarter,registerStarter}=await import('./setup/starter.mjs');
- report.starter_bank=await installStarter(join(root,'build'));report.steps.push('starter_bank');
+ report.starter_bank=await installStarter(buildRoot);report.steps.push('starter_bank');
  if(!configureOnly){
   // Use npm's JS entrypoint with Node, avoiding Windows .cmd shell quoting.
   const candidates=[process.env.npm_execpath,join(dirname(process.execPath),'node_modules/npm/bin/npm-cli.js'),...((process.env.PATH??'').split(delimiter).map(d=>process.platform==='win32'?join(d,'node_modules/npm/bin/npm-cli.js'):join(d,'npm'))) ].filter(Boolean);
   let npm;for(const candidate of candidates){try{await access(candidate);npm=await realpath(candidate);break;}catch{}}
   if(!npm)throw Error('npm JavaScript entrypoint not found. Install Node with npm or invoke npm run setup.');run(process.execPath,[npm,'ci']);report.steps.push('npm_ci');
-  run(paths.cmake,['-S',root,'-B',join(root,'build'),'-DCMAKE_BUILD_TYPE=Release']);
-  run(paths.cmake,['--build',join(root,'build'),'--config','Release','--parallel',String(Math.min(4,cpus().length))]);
+  run(paths.cmake,['-S',cmakeRoot,'-B',cmakeBuildRoot,'-DCMAKE_BUILD_TYPE=Release']);
+  run(paths.cmake,['--build',cmakeBuildRoot,'--config','Release','--parallel',String(Math.min(4,cpus().length))]);
+  report.visible_build_root=await exposeBuildRoot(root,buildRoot);
   run(process.execPath,[npm,'run','build']);report.steps.push('build');
-  run(process.execPath,['--test','tests/mcp.test.mjs','tests/content.test.mjs','tests/starter.test.mjs']);report.steps.push('mcp_content_and_starter_audio_tests');
+  const testEnv={...process.env,AIDAW_ENGINE:join(buildRoot,'bin',`aidaw-engine${process.platform==='win32'?'.exe':''}`),AIDAW_FFMPEG:paths.ffmpeg,AIDAW_FFPROBE:paths.ffprobe};
+  run(process.execPath,['--test','tests/mcp.test.mjs','tests/content.test.mjs','tests/starter.test.mjs'],{env:testEnv});report.steps.push('mcp_content_and_starter_audio_tests');
  }
- const engine=join(root,'build','bin',`aidaw-engine${process.platform==='win32'?'.exe':''}`);await access(engine);await access(join(root,'dist','mcp.js'));
+ const engine=join(buildRoot,'bin',`aidaw-engine${process.platform==='win32'?'.exe':''}`);await access(engine);await access(join(root,'dist','mcp.js'));
  const env={AIDAW_HOME:dataDir,AIDAW_ENGINE:engine,AIDAW_FFMPEG:paths.ffmpeg,AIDAW_FFPROBE:paths.ffprobe};
  // Verify a real stdio handshake and tool call, even in configure-only mode.
  const {Client}=await import('@modelcontextprotocol/sdk/client/index.js');const {StdioClientTransport}=await import('@modelcontextprotocol/sdk/client/stdio.js');
  const scratch=await mkdtemp(join(tmpdir(),'aidaw-setup-'));const transport=new StdioClientTransport({command:process.execPath,args:[join(root,'dist','mcp.js')],env:{...process.env,...env,AIDAW_HOME:scratch},stderr:'inherit'});const mcp=new Client({name:'aidaw-setup',version:'1.0.0'});
  try{await mcp.connect(transport);const tools=await mcp.listTools();if(!tools.tools.some(t=>t.name==='content_search'))throw Error('Incomplete MCP tool catalog');const result=await mcp.callTool({name:'system_capabilities',arguments:{}});if(result.isError)throw Error(JSON.stringify(result));report.capabilities=JSON.parse(result.content[0].text);report.steps.push('stdio_handshake_and_engine');}finally{await mcp.close();await rm(scratch,{recursive:true,force:true});}
  const {Service}=await import('../dist/service.js');const {ContentCatalog}=await import('../dist/content.js');const service=new Service(dataDir);
- try{report.starter_plugins=await registerStarter(service,join(root,'build'));report.steps.push('starter_plugins');const content=new ContentCatalog(service);const discovered=await content.discover();report.content_roots=discovered.roots.length;report.discovery_gaps=discovered.gaps;report.content_index=await content.index([],50000,30);report.steps.push('content_index');}finally{await service.close();}
+ try{report.starter_plugins=await registerStarter(service,buildRoot);report.steps.push('starter_plugins');const content=new ContentCatalog(service);const discovered=await content.discover();report.content_roots=discovered.roots.length;report.discovery_gaps=discovered.gaps;report.content_index=await content.index([],50000,30);report.steps.push('content_index');}finally{await service.close();}
  const {planConfigs,applyConfigs}=await import('./setup/config.mjs');
  const plans=await planConfigs({root,client,node:process.execPath,env});report.configs=await applyConfigs(plans,join(job,'config-backups'));report.steps.push('project_mcp_configuration');
  report.state='succeeded';report.activation='Client reload / new session and native project MCP trust may be required. Not yet verified inside the running client.';await record();
