@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "license": "AGPL-3.0-only",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/momuandteasteam/aidaw.git"
+  },
+  "homepage": "https://github.com/momuandteasteam/aidaw#readme",
+  "bugs": {
+    "url": "https://github.com/momuandteasteam/aidaw/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.13"
