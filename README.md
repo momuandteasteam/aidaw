@@ -4,7 +4,7 @@
 
 Codex / Claude CodeなどからMCPで操作する、GUIのない音楽制作エンジン。TypeScriptの制御層とC++20 / JUCEのオーディオエンジンで、VST3 / AUを実際に鳴らして書き出します。
 
-> **開発版（0.1.0）**：macOS arm64で実機検証済み。WindowsはCIでビルドと受け入れテストを行いますが、商用プラグインを含む実機検証は未完了です。互換性を保証する安定版ではありません。
+> **開発版（0.1.0）**：macOS arm64で実機検証済み。Windows実装はありますが、検証はWindows実機で別途行います。互換性を保証する安定版ではありません。
 
 ## セットアップ
 
@@ -19,7 +19,7 @@ node scripts/setup.mjs --client both
 
 Windowsの入口は `powershell -File scripts/setup.ps1 --client claude`。Node.js 22.13以降、CMake 3.22以降、C++開発環境、FFmpeg/ffprobeが必要です。
 
-[自動セットアップ](docs/AUTO_SETUP.md) / [Codex・Claudeの詳細設定](docs/SETUP_CODEX_CLAUDE.md)。macOSで検証、WindowsはCI定義と実装があり実機未確認。GitHubへの公開はセットアップに含まれません。
+[自動セットアップ](docs/AUTO_SETUP.md) / [Codex・Claudeの詳細設定](docs/SETUP_CODEX_CLAUDE.md)。macOSで検証済み、Windowsは実装済みで実機検証を別途行います。GitHubへの公開はセットアップに含まれません。
 
 ## 別マシンからの操作
 

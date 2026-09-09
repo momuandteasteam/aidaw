@@ -10,7 +10,8 @@ const findings=[];
 
 for(const file of files){
   if(forbidden.has(file)||file.startsWith('.aidaw/')||file.startsWith('outputs/'))findings.push(`${file}: private/generated path`);
-  const info=await stat(file);
+  let info;
+  try{info=await stat(file);}catch(error){if(error?.code==='ENOENT')continue;throw error;}
   if(info.size>10*1024*1024)findings.push(`${file}: ${info.size} bytes exceeds the 10 MiB source limit`);
   if(!textExtensions.has(extname(file).toLowerCase()))continue;
   const text=await readFile(file,'utf8');

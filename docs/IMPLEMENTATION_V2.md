@@ -60,7 +60,7 @@ bundle_importは新しいIDへ取り込み、相対パス、Windows禁則名、U
 
 ## 現在の対応範囲
 
-macOSのAU/VST3とWindowsのVST3を共通C++/TypeScript実装で扱う。Mac/Windows CI定義にはFFmpegも含める。今回の実行検証はmacOSで行い、Windows商用プラグイン実機の成功とは区別する。
+macOSのAU/VST3とWindowsのVST3を共通C++/TypeScript実装で扱う。ホスト型CIでは重いネイティブビルドを実行せず、macOSとWindowsの各実機で検証する。今回の実行検証はmacOSで行い、Windows商用プラグイン実機の成功とは区別する。
 
 48 kHz、ステレオoffline、固定tempo、1段のpost-fader sendが現在の範囲。sidechain、bus-to-busの任意routing、可変tempo、CC、他sample rateの自動変換、リアルタイムtransport、ベクトル類似検索は未対応。非対応はstrict schemaまたは明示エラーにし、対応済みとして扱わない。通常の音色・用途検索は登録済みの文とタグの検索で実装する。
 
@@ -75,7 +75,7 @@ project_cleanupは成功jobのworkに限定し、素材・凍結・候補artifac
 - effect_probeの音量比較音声追加後に、DB・一括試奏／再開・互換性・FX比較・LUFS測定の3件を再実行して成功。
 - 原音全サンプル保持、局所フェード前の不変、共有FXを含むstem合算、遅延補償、ZIP自己包含防止、元project／catalogなしの凍結再生、タグ再読込、publish中断復旧、batch取消、100回編集時の固定ディレクトリ、譜面／発音MIDIの分離を含む。
 
-Windows CIの実行結果、Windows商用プラグインの実機動作、生成音色の音声AI聴取評価は、この検証結果には含めない。
+Windows実機での動作、Windows商用プラグインの実機動作、生成音色の音声AI聴取評価は、この検証結果には含めない。
 
 
 ## ミキサー追加実装
