@@ -15,6 +15,7 @@
 | 個別レシピだけにあった保存後readback | src/service.ts capturePluginState | 今回共通化。savePresetと全track/bus/masterのfreezeで、明示的に編集したパラメーターを別ワーカーで状態のみ復元し照合。消失時は保存を失敗させる |
 | MODO音色の公開パラメーター不足 | native/ModoBassPreset.h、src/service.ts | 2.0.5 VST3向けmb2アダプター。別製品/版への推測適用を拒否 |
 | MASSIVE XのNKS読み込み | src/nks.ts、src/service.ts | 製品ID/コンテナ/対応版を検査 |
+| Kontakt 8のNKI/NKSN読み込み | native/KontaktPreset.h、native/Engine.h、src/service.ts | Windows VST3 8.13.0に限定。一時エディターへのOSファイルドロップ後、発音・保存状態・別インスタンス復元後の発音を検査。サンプルstreaming中はメッセージループを進め、短い出力でも内部処理を4秒まで安定化し、releaseResources/DLL終了時の競合をワーカー単位のOS cleanupで隔離 |
 | フェーダー・FXの二重適用 | src/mixer.ts | 演奏→insert→fader→send/return→premaster→master。ステム和を検証 |
 | 一部だけ直すのに全音源が再発音 | src/mixer.ts、src/fingerprint.ts | 変更下流のみ無効化、確定音声とバイナリーhashを照合 |
 | RAWと参考音源の取り違え・暗黙のカット | src/assets.ts、src/schema.ts、src/service.ts | source/reference役割、原音保持、明示的clip/fade範囲、無断の長さ短縮を拒否 |
@@ -24,7 +25,7 @@
 
 ## 完全実装とは扱わないもの
 
-- Kontaktの任意NKI/NKSNロード、コンテナ内の全音色列挙、全プラグイン共通ready判定。
+- Kontaktの別OS・別版への汎用NKI/NKSNロード、コンテナ内の全音色列挙、全プラグイン共通ready判定。
 - 処理中の動的PDC、マルチ出力のミックス、CC/サステイン、sidechain、可変テンポ、リアルタイム録音/再生。
 - 終止位置の音楽的な自動判定、原音と参考音源の自動時間対応、クリック修復の汎用DSP。
 - 曲別に行っていたスペクトル/ステレオ相関の詳細分析、任意プラグインの意味単位変換、ラウドネス目標へ収束する汎用自動マスタリング。

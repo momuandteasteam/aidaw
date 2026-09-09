@@ -133,6 +133,18 @@ export class Service {
     const state_base64 = await massiveXStateFromNks(resolve(path));
     return this.savePreset({ kind: 'plugin', plugin_id: s.plugin_id, plugin_version: resolved.plugin_version, state_base64, parameters: s.parameters }, name, tags);
   }
+  async importKontaktPreset(s: Plugin, path: string, name: string, tags: string[], probePitch = 60) {
+    const resolved = await this.resolvePlugin(s);
+    if (process.platform !== 'win32' || s.plugin_id !== 'VST3:Native Instruments:Kontakt 8:f852a294' || resolved.plugin_version !== '8.13.0')
+      throw new Error('Kontakt import is verified only for Native Instruments Kontakt 8 VST3 8.13.0 on Windows');
+    const result = await this.engine.call({ command: 'kontakt_preset', plugin: resolved, path: resolve(path), probe_pitch: probePitch }, { timeout: 180000 });
+    const preset: Preset = { id: randomUUID(), name, tags, plugin_id: s.plugin_id, plugin_version: resolved.plugin_version, state_base64: result.state_base64 };
+    await locked(join(this.root,'PluginLibrary.aidaw','temp','catalog.lock'), async () => {
+      const c = await this.catalog(); c.presets.push(preset); await atomicJson(this.catalogPath, c);
+    });
+    const { state_base64, ...metadata } = preset;
+    return { ...metadata, adapter: result.adapter, format: result.format, loaded_probe_peak: result.loaded_probe_peak, restored_probe_peak: result.restored_probe_peak };
+  }
   async freezePlugins(p: Project, workDir?:string) {
     const freeze = async (s: Plugin) => {
       // Store the concrete preset state in the portable project, not only a machine-local preset ID.

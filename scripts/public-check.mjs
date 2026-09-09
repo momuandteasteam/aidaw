@@ -16,6 +16,7 @@ for(const file of files){
   if(!textExtensions.has(extname(file).toLowerCase()))continue;
   const text=await readFile(file,'utf8');
   if(/\/Users\/(?!Shared(?:\/|:)|yourname\/|\.\.\.\/)[^/\s"']+\//.test(text)||/Mobile Documents\/com~apple/.test(text))findings.push(`${file}: developer-specific macOS path`);
+  if(/[A-Za-z]:\\Users\\(?!yourname(?:\\|:)|Public(?:\\|:))[^\\\s"']+\\/i.test(text))findings.push(`${file}: developer-specific Windows path`);
   if(/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(text))findings.push(`${file}: private key material`);
   if(/(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*["'][A-Za-z0-9_\-\/+=.]{20,}["']/i.test(text))findings.push(`${file}: credential-like assignment`);
 }

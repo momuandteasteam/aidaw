@@ -33,4 +33,6 @@
 
 接続と受付・完成済み曲の取得は並行。音声処理はサーバー全体で常に1件とし、空いたCPUを理由に複数曲を並列化しない。試奏・バッチ・新規変換も同じ順番待ち。既存WAV/MP3/ZIPの取得と状態照会は音声キューに入れない。
 
+WindowsをMac等から使う常駐サーバーにする依頼では、`scripts/setup-remote-windows.ps1` を使う。既定のloopback bindと認証を維持し、Tailscale Serve等の暗号化された経路を使う。LANやインターネットへ平文HTTPを直接公開しない。MacのCodex設定は `scripts/configure-remote-macos.sh` を使い、トークンをコマンドラインや `config.toml` へ平文で残さない。同じAIDAW_HOMEをstdioとHTTPで同時起動せず、HTTP常駐化後はWindows側Codexもloopback HTTPへ接続する。ロックを除去するのは所有PIDが停止済みと確認できた場合だけ。
+
 標準セットアップには **AIDAW GM（FluidR3）・EQ・Limiter・Reverb** が含まれます。手持ち音源がない環境での制作、またはユーザーが標準音源を希望する場合、AIDAW GMは `plugin_first` のまま明示的に選択できます。先に利用可能な音源・内部ライブラリを比較する方針と、指定された音源のロード失敗を黙って代用しない規約は維持します。詳細: [標準音源・エフェクト](docs/STARTER_PACK.md)。
