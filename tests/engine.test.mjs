@@ -29,6 +29,7 @@ test('VST3 scan, parameter control, saved state and rendered audio work without 
   await access(location); const scanned = await api('catalog_scan', { format: 'VST3', location });
   const instrument = { kind: 'plugin', plugin_id: scanned.plugins[0].plugin_id };
   await assert.rejects(api('modo_bass_preset_import', { plugin: instrument, path: 'not-a-preset.mb2', name: 'Invalid adapter' }), /only for MODO BASS/);
+  await assert.rejects(api('kontakt_preset_import', { plugin: instrument, path: 'not-a-preset.nki', name: 'Invalid Kontakt adapter' }), /only for Native Instruments Kontakt/);
   assert.equal((await api('catalog_search', { query: 'Invalid adapter' })).total_presets, 0);
   const info = await api('plugin_inspect', { plugin: instrument });
   const gain = info.parameters.find(p => p.name === 'Gain'); assert.ok(gain); assert.ok(Math.abs(gain.value - 0.3) < 1e-5);

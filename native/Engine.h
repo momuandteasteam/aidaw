@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <numeric>
 #include <stdexcept>
 #include <vector>
 
@@ -40,9 +41,9 @@ var describe(const juce::PluginDescription& d) {
 bool requiresIsolatedExit = false;
 struct PluginDeleter {
     void operator()(juce::AudioPluginInstance* p) const { if (p) {
-        // Massive X 1.7.1 races Qt database workers during bundleExit. The worker owns
-        // one request; keep this module alive until OS process cleanup after writing output.
-        if (p->getPluginDescription().name == "Massive X" && p->getPluginDescription().manufacturerName == "Native Instruments" && p->getPluginDescription().version == "1.7.1 (R0)") { requiresIsolatedExit = true; return; }
+        // A flagged one-request worker leaves plugin teardown to immediate OS cleanup.
+        // Do not call back into an NI module here: its background workers may already be racing exit.
+        if (requiresIsolatedExit) return;
         delete p->getActiveEditor(); delete p;
     } }
 };
@@ -50,22 +51,27 @@ using HostedPlugin = std::unique_ptr<juce::AudioPluginInstance, PluginDeleter>;
 HostedPlugin load(juce::AudioPluginFormatManager& m, const var& s) {
     auto xml = juce::parseXML(s["description_xml"].toString()); juce::PluginDescription d;
     check(xml != nullptr && d.loadFromXml(*xml), "Invalid plugin description");
+    // These exact NI versions can race their content/database workers during bundleExit.
+    // Mark before module creation so even partial initialization uses one-request OS cleanup.
+    const bool massiveXContent = d.name == "Massive X" && d.manufacturerName == "Native Instruments" && d.version == "1.7.1 (R0)";
+    const bool kontaktContent = d.name == "Kontakt 8" && d.manufacturerName == "Native Instruments" && d.version == "8.13.0";
+    if (massiveXContent || kontaktContent) requiresIsolatedExit = true;
     check(!getFormat(m, d.pluginFormatName)->requiresUnblockedMessageThreadDuringCreation(d), "AUv3 / asynchronous creation not supported");
     String error; HostedPlugin p(m.createPluginInstance(d, rate, block, error).release());
     check(p != nullptr, "Plugin load failed: " + error);
-    // Massive X schedules content initialization and state restoration on the message loop.
-    const bool deferredContent = d.name == "Massive X" && d.manufacturerName == "Native Instruments" && d.version == "1.7.1 (R0)";
+    // Some Native Instruments products schedule content initialization and state restoration on the message loop.
+    const bool deferredContent = massiveXContent || kontaktContent;
     if (deferredContent) {
         auto* editor = p->createEditorAndMakeActive();
-        check(editor != nullptr, "Massive X content initialization requires its hidden editor");
+        check(editor != nullptr, "Native Instruments content initialization requires its hidden editor");
         editor->addToDesktop(0); // Attach the native view without displaying or operating it.
-        juce::MessageManager::getInstance()->runDispatchLoopUntil(6000);
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(massiveXContent ? 6000 : 1000);
         p->setRateAndBufferSizeDetails(rate, block); p->prepareToPlay(rate, block);
     }
     if (s.hasProperty("state_base64")) {
         juce::MemoryBlock state; check(state.fromBase64Encoding(s["state_base64"].toString()), "Invalid state");
         p->setStateInformation(state.getData(), static_cast<int>(state.getSize()));
-        if (deferredContent) juce::MessageManager::getInstance()->runDispatchLoopUntil(1500);
+        if (deferredContent) juce::MessageManager::getInstance()->runDispatchLoopUntil(massiveXContent ? 1500 : 8000);
     }
     if (s.hasProperty("program")) p->setCurrentProgram(static_cast<int>(num(s["program"], 0, std::max(0, p->getNumPrograms() - 1))));
     if (s.hasProperty("parameters")) for (const auto& change : arr(s["parameters"])) {
@@ -85,6 +91,7 @@ HostedPlugin load(juce::AudioPluginFormatManager& m, const var& s) {
 }
 }
 #include "ModoBassPreset.h"
+#include "KontaktPreset.h"
 namespace aidaw {
 var inspect(juce::AudioPluginFormatManager& m, const var& s) {
     auto p = load(m, s);
@@ -176,9 +183,15 @@ public:
 struct Chain {
     std::vector<HostedPlugin> plugins;
     std::vector<int> latencies;
+    std::vector<int> messageLoopMs;
     int latency = 0;
+    juce::int64 minimumProcessFrames = 0;
     juce::AudioBuffer<float> scratch {2, block};
-    ~Chain() { for (auto& p : plugins) p->releaseResources(); }
+    ~Chain() {
+        // Exact NI builds marked for isolated exit have crashed inside releaseResources/module teardown.
+        // Their one-request worker is terminated immediately after its durable JSON response.
+        if (!requiresIsolatedExit) for (auto& p : plugins) p->releaseResources();
+    }
     void add(juce::AudioPluginFormatManager& m, const var& s, Playhead& head, bool instrument) {
         auto p = load(m, s); p->disableNonMainBuses(); auto layout = p->getBusesLayout();
         if (!layout.outputBuses.isEmpty()) layout.outputBuses.getReference(0) = juce::AudioChannelSet::stereo();
@@ -201,6 +214,10 @@ struct Chain {
         const auto samples = p->getLatencySamples();
         check(samples >= 0 && samples <= 480000 && latency + samples <= 480000, "Plugin chain latency exceeds 10 seconds");
         latencies.push_back(samples); latency += samples;
+        const auto d = p->getPluginDescription();
+        const bool kontakt = d.name == "Kontakt 8" && d.manufacturerName == "Native Instruments" && d.version == "8.13.0";
+        messageLoopMs.push_back(kontakt ? 2 : 0);
+        if (kontakt) minimumProcessFrames = std::max<juce::int64>(minimumProcessFrames, static_cast<juce::int64>(4 * rate));
         plugins.push_back(std::move(p));
     }
     void process(juce::AudioBuffer<float>& b, juce::MidiBuffer& midi) {
@@ -213,6 +230,7 @@ struct Chain {
             scratch.clear();
             for (int c = 0; c < 2; ++c) scratch.copyFrom(c, 0, b, c, 0, b.getNumSamples());
             p->processBlock(scratch, midi);
+            if (messageLoopMs[index] > 0) juce::MessageManager::getInstance()->runDispatchLoopUntil(messageLoopMs[index]);
             check(p->getLatencySamples() == latencies[index], "Plugin latency changed during rendering; restart the render after settings stabilize");
             for (int c = 0; c < 2; ++c) b.copyFrom(c, 0, scratch, c, 0, b.getNumSamples());
         }
@@ -359,7 +377,9 @@ var render(juce::AudioPluginFormatManager& m, const var& request) {
         t->alignment.prepare(maximumTrackLatency - t->chain.latency);
         latencyReport.add(obj({{"track_id", t->id}, {"plugin_samples", t->chain.latency}, {"alignment_samples", maximumTrackLatency - t->chain.latency}}));
     }
-    const auto processFrames = frames + totalLatency;
+    const auto outputProcessFrames = frames + totalLatency;
+    const auto processFrames = std::max(outputProcessFrames, std::max(master.minimumProcessFrames,
+        std::accumulate(tracks.begin(), tracks.end(), static_cast<juce::int64>(0), [](auto maximum, const auto& t) { return std::max(maximum, t->chain.minimumProcessFrames); })));
     std::unique_ptr<juce::OutputStream> stream = output.createOutputStream(); check(stream != nullptr, "Cannot open output"); juce::WavAudioFormat wav;
     const bool floating = request["sample_format"].toString() == "float32";
     auto writer = wav.createWriterFor(stream, juce::AudioFormatWriterOptions{}.withSampleRate(rate).withNumChannels(2).withBitsPerSample(floating ? 32 : 24).withSampleFormat(floating ? juce::AudioFormatWriterOptions::SampleFormat::floatingPoint : juce::AudioFormatWriterOptions::SampleFormat::integral));
@@ -374,7 +394,10 @@ var render(juce::AudioPluginFormatManager& m, const var& request) {
             while (t->cursor < t->events.size() && t->events[t->cursor].sample < at + count) {
                 auto& event = t->events[t->cursor++]; midi.addEvent(event.message, static_cast<int>(event.sample - at));
             }
-            if (t->cached) check(t->source->read(&audio, 0, count, at, true, true), "Cannot read isolated stem");
+            if (t->cached && at < outputProcessFrames) {
+                const auto readable = static_cast<int>(std::min<juce::int64>(count, outputProcessFrames - at));
+                check(t->source->read(&audio, 0, readable, at, true, true), "Cannot read isolated stem");
+            }
             else if (t->source) {
                 const auto first = std::max(at, t->timeline), last = std::min(at + count, t->timeline + t->end - t->start);
                 if (last > first) {
@@ -394,12 +417,13 @@ var render(juce::AudioPluginFormatManager& m, const var& request) {
         }
         juce::MidiBuffer noMidi; masterAutomation.apply(at);master.process(mix, noMidi);
         if(project.hasProperty("master_gain_db"))mix.applyGain(static_cast<float>(juce::Decibels::decibelsToGain(num(project["master_gain_db"],-96,12))));
-        const auto skip = static_cast<int>(std::clamp<juce::int64>(totalLatency - at, 0, count));
-        for (int c = 0; c < 2; ++c) for (int i = skip; i < count; ++i) {
+        const auto writable = static_cast<int>(std::clamp<juce::int64>(outputProcessFrames - at, 0, count));
+        const auto skip = static_cast<int>(std::clamp<juce::int64>(totalLatency - at, 0, writable));
+        for (int c = 0; c < 2; ++c) for (int i = skip; i < writable; ++i) {
             auto v = mix.getSample(c, i); check(std::isfinite(v), "Non-finite plugin output"); peak = std::max(peak, static_cast<double>(std::abs(v)));
         }
         check(floating || peak <= 1, "Clipping detected: reduce track gain");
-        if (count > skip) check(writer->writeFromAudioSampleBuffer(mix, skip, count - skip), "Audio write failed");
+        if (writable > skip) check(writer->writeFromAudioSampleBuffer(mix, skip, writable - skip), "Audio write failed");
     }
     juce::Array<var> automationReport;
     for (const auto& t : tracks) if (!t->automation.lanes.empty()) automationReport.add(obj({{"track_id", t->id}, {"lanes", static_cast<int>(t->automation.lanes.size())}, {"parameter_updates", t->automation.updates}, {"control_interval_samples", quantum}}));
@@ -425,6 +449,7 @@ var execute(const var& r) {
     }
     if (command == "inspect") return inspect(m, r["plugin"]);
     if (command == "modo_bass_preset") return modoPreset(m, r);
+    if (command == "kontakt_preset") return kontaktPreset(m, r);
     if (command == "render") return render(m, r);
     if (command == "compare_audio") return compareAudio(r);
     if (command == "analyze") return analyze(path(r["path"]));
@@ -438,7 +463,15 @@ int run(int argc, char** argv) {
         response = obj({{"ok", true}, {"result", execute(request)}});
     } catch (const std::exception& e) { response = obj({{"ok", false}, {"error", String(e.what())}}); status = 1; }
     if (!juce::File(String::fromUTF8(argv[2])).replaceWithText(juce::JSON::toString(response))) return 3;
-    if (requiresIsolatedExit) std::_Exit(status);
+    if (requiresIsolatedExit) {
+#if JUCE_WINDOWS
+        // Kontakt may keep a GUI/content thread inside DLL teardown even after the response is durable.
+        // This executable is a one-request worker, so terminate without running third-party DLL detach code.
+        TerminateProcess(GetCurrentProcess(), static_cast<UINT>(status));
+#else
+        std::_Exit(status);
+#endif
+    }
     return status;
 }
 }
