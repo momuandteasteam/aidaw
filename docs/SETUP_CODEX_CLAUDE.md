@@ -51,6 +51,8 @@ node dist/cli.js system_capabilities
 
 WindowsはDeveloper PowerShellでソースフォルダに移動し、configure行を必要に応じて `cmake -S . -B build -A x64` にする。以降のbuild/npmコマンドは同じ。WindowsではWindows版Nodeとネイティブエンジンを使う。WSL内でWindows VST3がそのまま動く前提にしない。
 
+クローン先の絶対パスに日本語などの非ASCII文字が含まれる場合は、手動のCMakeコマンドではなく `scripts/setup.ps1` を使う。セットアップはネイティブ入力だけを `%LOCALAPPDATA%\AIDAW\native-workspaces\<hash>` へ同期し、MSBuild/JUCEをASCIIパス上で実行する。クローン先の `build` はその成果物へのジャンクションになり、Codex設定には実体のエンジンパスが記録される。
+
 出力を確認する：
 
 - `dist/mcp.js`：MCPサーバー

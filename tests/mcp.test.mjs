@@ -20,9 +20,9 @@ test('real MCP stdio client discovers tools and creates/edits/renders a project'
   await api('project_apply', { project_id: 'song', base_revision: 0, request_id: 'mcp-edit', operations: [{ op: 'add_track', track }] });
   const j = await api('render_start', { project_id: 'song' });
   let result;
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 600; i++) {
     result = await api('job_status', { job_id: j.job_id });
-    if (result.state !== 'running') break;
+    if (!['queued', 'running'].includes(result.state)) break;
     await new Promise(r => setTimeout(r, 50));
   }
   assert.equal(result.state, 'succeeded', result.error); assert.equal(result.analysis.silent, false);
