@@ -1,0 +1,45 @@
+name: Bug report
+description: Report a reproducible AIDAW problem
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not attach licensed audio, plug-in binaries, presets, tokens or unredacted home-directory paths.
+  - type: input
+    id: version
+    attributes:
+      label: AIDAW version or commit
+      placeholder: 0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS arm64, macOS x64, Windows arm64, Windows x64, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Include the MCP/API call and sanitized input needed to reproduce the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: plugin
+    attributes:
+      label: Plug-in details, if relevant
+      description: Format, vendor, product version, architecture and whether authorization completed. Do not attach plug-in state.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      render: shell

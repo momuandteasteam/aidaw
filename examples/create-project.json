@@ -1,0 +1,11 @@
+{
+  "project_id": "my-song",
+  "name": "Explicit basic-instrument API demo",
+  "bpm": 90,
+  "length_ticks": 15360,
+  "meter": [
+    4,
+    4
+  ],
+  "instrument_policy": "allow_basic"
+}

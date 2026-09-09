@@ -1,0 +1,21 @@
+AIDAW
+Copyright (C) 2026 AIDAW contributors
+
+This repository is licensed under the GNU Affero General Public License,
+version 3 only. See LICENSE.
+
+Third-party components are not relicensed by AIDAW:
+
+- JUCE is fetched from a fixed upstream commit and is used under the GNU
+  Affero General Public License v3 unless the builder has obtained and elects
+  to use a commercial JUCE licence. See docs/licenses/JUCE-LICENSE.md.
+- TinySoundFont (tsf.h) is fetched from a fixed upstream commit and is licensed
+  under the MIT License. See docs/licenses/TinySoundFont-LICENSE.txt.
+- FluidR3 is downloaded during starter-pack setup and is licensed under the
+  MIT License. See docs/licenses/FluidR3-LICENSE.txt and
+  docs/licenses/FluidR3-README.txt.
+- JUCE includes or interfaces with additional third-party components. Their
+  applicable notices are distributed with the fetched JUCE source.
+
+Commercial VST3 and Audio Unit plug-ins, user presets, sample libraries and
+their licences are never part of this repository or the AIDAW licence.

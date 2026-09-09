@@ -1,0 +1,52 @@
+# Dependencies and generated binaries
+/node_modules/
+/build/
+/dist/
+/coverage/
+*.tsbuildinfo
+*.o
+*.obj
+*.pdb
+*.dSYM/
+
+# Local projects, masters, jobs, and old source audit archives
+/.aidaw/
+/outputs/
+/tmp/
+/catalog/observed-plugins.json
+*.aidaw/
+*.aidaw.zip
+*.wav
+*.aif
+*.aiff
+*.flac
+*.mp3
+*.mid
+*.midi
+*.sf2
+*.sf3
+*.nki
+*.nkm
+*.nksf
+*.nksn
+*.vst3/
+*.component/
+
+# Per-machine client settings and credentials
+/.codex/config.toml
+/.mcp.json
+/.claude/settings.local.json
+/CLAUDE.local.md
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Transient files
+*.tmp
+*.log
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

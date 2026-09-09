@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a portable music-engine capability
+title: "[Feature] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the production task that cannot be completed reliably today.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Include the expected MCP/API, project-format or rendering behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: portability
+    attributes:
+      label: Portability and plug-in considerations
+      description: Explain relevant macOS, Windows, AU, VST3 or fallback behavior.

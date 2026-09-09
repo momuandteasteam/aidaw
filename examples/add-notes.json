@@ -1,0 +1,19 @@
+{
+  "project_id": "my-song",
+  "base_revision": 0,
+  "request_id": "first-notes",
+  "operations": [{
+    "op": "add_track",
+    "track": {
+      "id": "piano", "name": "Piano", "role": "chords",
+      "instrument": { "kind": "builtin", "sound": "keys" },
+      "gain_db": -6,
+      "notes": [
+        { "id": "d", "tick": 0, "duration": 3000, "pitch": 62, "velocity": 80 },
+        { "id": "f", "tick": 0, "duration": 3000, "pitch": 65, "velocity": 75 },
+        { "id": "a", "tick": 0, "duration": 3000, "pitch": 69, "velocity": 75 },
+        { "id": "c", "tick": 0, "duration": 3000, "pitch": 72, "velocity": 72 }
+      ]
+    }
+  }]
+}
