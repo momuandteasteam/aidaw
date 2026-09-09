@@ -387,7 +387,10 @@ var render(juce::AudioPluginFormatManager& m, const var& request) {
     juce::AudioBuffer<float> mix(2, block), audio(2, block); double peak = 0;
     const int quantum = !masterAutomation.lanes.empty() || std::any_of(tracks.begin(), tracks.end(), [](const auto& t) { return !t->automation.lanes.empty(); }) ? 64 : block;
     for (juce::int64 at = 0; at < processFrames; at += quantum) {
-        auto count = static_cast<int>(std::min<juce::int64>(quantum, processFrames - at)); head.sample = at;
+        // Keep the processing block fixed and zero-pad the final call. Some VST3 instruments,
+        // including Kontakt 8.13.0, access-violate when a host sends a short final block.
+        // Only the requested portion is written below, so the output duration remains exact.
+        const int count = quantum; head.sample = at;
         mix.setSize(2, count, false, false, true); mix.clear();
         for (auto& t : tracks) {
             audio.setSize(2, count, false, false, true); audio.clear(); juce::MidiBuffer midi;
