@@ -36,3 +36,11 @@ test('remote config command line writes a new Codex config without exposing a to
  const next=parse(await readFile(config,'utf8'));assert.equal(next.mcp_servers.aidaw.url,'http://localhost:8787/mcp');assert.equal(next.mcp_servers.aidaw.bearer_token_env_var,'AIDAW_HTTP_TOKEN');
  assert.doesNotMatch(await readFile(config,'utf8'),/[A-Fa-f0-9]{64}/);
 });
+
+test('Windows remote setup emits executable runner variable assignments',async()=>{
+ const script=await readFile('scripts/setup-remote-windows.ps1','utf8');
+ for(const name of ['NodePath','EnvironmentFile','EntryPoint','LogFile']){
+  assert.match(script,new RegExp(`\\('\\$${name} = `));
+  assert.doesNotMatch(script,new RegExp(`\\('`+'`'+`\\$${name} = `));
+ }
+});

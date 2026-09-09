@@ -96,10 +96,10 @@ function Quote-AidawPowerShell([string]$Value) { return "'" + $Value.Replace("'"
 $RunnerText = @(
   "`$ErrorActionPreference = 'Stop'"
   ('Set-Location -LiteralPath ' + (Quote-AidawPowerShell $AidawRoot))
-  ('`$NodePath = ' + (Quote-AidawPowerShell $NodePath))
-  ('`$EnvironmentFile = ' + (Quote-AidawPowerShell $EnvironmentFile))
-  ('`$EntryPoint = ' + (Quote-AidawPowerShell $EntryPoint))
-  ('`$LogFile = ' + (Quote-AidawPowerShell $LogFile))
+  ('$NodePath = ' + (Quote-AidawPowerShell $NodePath))
+  ('$EnvironmentFile = ' + (Quote-AidawPowerShell $EnvironmentFile))
+  ('$EntryPoint = ' + (Quote-AidawPowerShell $EntryPoint))
+  ('$LogFile = ' + (Quote-AidawPowerShell $LogFile))
   'Add-Content -LiteralPath $LogFile -Value ("[" + (Get-Date -Format o) + "] Starting AIDAW HTTP server.")'
   '& $NodePath ("--env-file=" + $EnvironmentFile) $EntryPoint 2>&1 | ForEach-Object { Add-Content -LiteralPath $LogFile -Value $_ }'
   'exit $LASTEXITCODE'
