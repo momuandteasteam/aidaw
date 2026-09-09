@@ -1,5 +1,7 @@
 # AIDAW
 
+[English](README_EN.md) | 日本語
+
 ![AIDAWのシステム概要。利用者がCodexなどのAIエージェントへ会話で指示し、AIDAWが音楽制作を実行して、完成音源・パート別音声・MIDI・プロジェクトを返す流れ](docs/assets/aidaw-system-overview.png)
 
 AIDAWは、**CodexやClaude CodeなどのAIエージェントと会話して使う、編集GUIのない音楽制作エンジン**です。
