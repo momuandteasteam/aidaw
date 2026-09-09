@@ -39,5 +39,6 @@ plug-in case instead of checking in vendor binaries or plug-in state.
   is intentionally ignored because product versions and program names can
   identify a workstation or disclose user-created names.
 
-The `main` branch requires the macOS acceptance job before a change is merged.
+The repository does not run the native build in hosted CI. Run the checks above
+before opening a pull request and record the tested host in the description.
 Windows acceptance is recorded separately when it is run on a Windows machine.

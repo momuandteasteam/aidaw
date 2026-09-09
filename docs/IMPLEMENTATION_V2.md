@@ -60,7 +60,7 @@ bundle_importは新しいIDへ取り込み、相対パス、Windows禁則名、U
 
 ## 現在の対応範囲
 
-macOSのAU/VST3とWindowsのVST3を共通C++/TypeScript実装で扱う。GitHub CIはmacOSで実行し、Windowsは別途実機で検証する。今回の実行検証はmacOSで行い、Windows商用プラグイン実機の成功とは区別する。
+macOSのAU/VST3とWindowsのVST3を共通C++/TypeScript実装で扱う。ホスト型CIでは重いネイティブビルドを実行せず、macOSとWindowsの各実機で検証する。今回の実行検証はmacOSで行い、Windows商用プラグイン実機の成功とは区別する。
 
 48 kHz、ステレオoffline、固定tempo、1段のpost-fader sendが現在の範囲。sidechain、bus-to-busの任意routing、可変tempo、CC、他sample rateの自動変換、リアルタイムtransport、ベクトル類似検索は未対応。非対応はstrict schemaまたは明示エラーにし、対応済みとして扱わない。通常の音色・用途検索は登録済みの文とタグの検索で実装する。
 
