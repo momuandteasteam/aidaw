@@ -3,18 +3,24 @@ import assert from 'node:assert/strict';
 import {readdir,readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
+function trackedFiles(prefix){
+ const result=spawnSync('git',['ls-files','--',prefix],{encoding:'utf8'});
+ assert.equal(result.status,0,result.stderr);
+ return result.stdout.trim().split('\n').filter(Boolean);
+}
 test('runtime scripts are shared tools and private artifacts are ignored',async()=>{
- const entries=await readdir('scripts');assert.deepEqual(entries.sort(),['configure-remote-macos.sh','demo.mjs','public-check.mjs','setup','setup-remote-windows.ps1','setup.mjs','setup.ps1','setup.sh'].sort());
+ const entries=new Set();
+ for(const file of trackedFiles('scripts')) entries.add(file.slice('scripts/'.length).split('/')[0]);
+ assert.deepEqual([...entries].sort(),['configure-remote-macos.sh','demo.mjs','public-check.mjs','setup','setup-remote-windows.ps1','setup.mjs','setup.ps1','setup.sh'].sort());
  const paths=['.aidaw/test.wav','outputs/master.wav','.mcp.json','.codex/config.toml','.env','song.wav','build/bin/aidaw-engine'];const r=spawnSync('git',['check-ignore','--stdin'],{input:paths.join('\n')+'\n',encoding:'utf8'});assert.equal(r.status,0);assert.equal(r.stdout.trim().split('\n').length,paths.length);
  const personalMacPath=/\/Users\/(?!Shared(?:\/|:)|yourname\/|\.\.\.\/)[^/\s"']+\//;
  for(const folder of ['src','native'])for(const name of await readdir(folder)){const s=await readFile(join(folder,name),'utf8');assert.doesNotMatch(s,personalMacPath,name+' embeds a developer-specific path');}
 });
 test('distributed source and documentation contain no developer workspace paths or song-specific scripts',async()=>{
- const files=['AGENTS.md','CLAUDE.md','DESIGN.md','MASTERING.md','README.md','CMakeLists.txt','package.json',
+  const files=['AGENTS.md','CLAUDE.md','DESIGN.md','MASTERING.md','README.md','CMakeLists.txt','package.json',
   ...(await readdir('docs')).filter(n=>n.endsWith('.md')).map(n=>join('docs',n)),
   ...(await readdir('tests')).filter(n=>n.endsWith('.mjs')).map(n=>join('tests',n)),
-  ...(await readdir('scripts')).filter(n=>/\.(?:mjs|ps1|sh)$/.test(n)).map(n=>join('scripts',n)),
-  ...(await readdir(join('scripts','setup'))).filter(n=>n.endsWith('.mjs')).map(n=>join('scripts','setup',n)),
+  ...trackedFiles('scripts').filter(n=>/\.(?:mjs|ps1|sh)$/.test(n)),
   ...(await readdir('src')).map(n=>join('src',n)),...(await readdir('native')).map(n=>join('native',n))];
  const personalMacPath=/\/Users\/(?!Shared(?:\/|:)|yourname\/|\.\.\.\/)[^/\s"']+\//;
  const personalWindowsPath=/[A-Za-z]:\\Users\\(?!yourname(?:\\|:)|Public(?:\\|:))[^\\\s"']+\\/i;

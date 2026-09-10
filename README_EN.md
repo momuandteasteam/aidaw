@@ -87,5 +87,6 @@ AIDAW currently focuses on fixed-tempo, 48 kHz stereo offline production. Real-t
 - [Instrument and preset selection](docs/INSTRUMENT_SELECTION.md)
 - [Remote server operation](docs/REMOTE_SERVER.md)
 - [Architecture design](DESIGN.md)
+- [Open-source development](docs/OPEN_SOURCE.md)
 
 Please report bugs and suggestions through [GitHub Issues](https://github.com/momuandteasteam/aidaw/issues). AIDAW is distributed under the [GNU Affero General Public License v3.0](LICENSE).

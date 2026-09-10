@@ -85,5 +85,6 @@ AIDAWは、固定テンポ・48 kHz・ステレオのオフライン制作を中
 - [音源とプリセットの選び方](docs/INSTRUMENT_SELECTION.md)
 - [遠隔サーバーとして使う](docs/REMOTE_SERVER.md)
 - [設計資料](DESIGN.md)
+- [オープンソース開発方針](docs/OPEN_SOURCE.md)
 
 不具合や改善案は[GitHub Issues](https://github.com/momuandteasteam/aidaw/issues)へお寄せください。AIDAWは [GNU Affero General Public License v3.0](LICENSE) で公開しています。

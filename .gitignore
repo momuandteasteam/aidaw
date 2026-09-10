@@ -14,6 +14,8 @@
 /outputs/
 /tmp/
 /catalog/observed-plugins.json
+# One-off production scripts may contain licensed source/audio paths and plugin IDs.
+/scripts/master-tea-steam-jukebox*.mjs
 *.aidaw/
 *.aidaw.zip
 *.wav
