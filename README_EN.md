@@ -42,6 +42,7 @@ Listen to the exported result and revise it if necessary.
 - **Create music through conversation:** Describe the genre, mood, duration, instrumentation, chord progression, or other musical goals. The AI agent builds the parts and arrangement, then AIDAW turns them into audio. You can listen and continue with requests such as “make the low end deeper” or “change the buildup.”
 - **Turn sheet music into MIDI and audio:** Give a PDF or image to an AI agent that can read it. The agent transcribes the notes into separate MIDI parts in AIDAW and performs them with selected software instruments. You can later edit the notes, durations, velocities, and sounds.
 - **Revise individual parts:** Drums, bass, piano, and other performances remain separate. AIDAW can regenerate the changed part and the required downstream mix stages while preserving the other performances.
+- **Listen without exporting a render:** Play the current project directly through the audio device, including instruments, track effects, sends, returns, and master effects, without creating a WAV file. Pause, resume, seek, and range looping are supported.
 - **Mix and master:** Control track levels, panning, inserts, sends to reverbs or delays, and master effects. You can also import a finished stereo mix, adjust its tone and loudness, and deliver it as WAV or MP3.
 - **Use your installed plug-ins directly:** AIDAW supports VST3 on Windows, and VST3 plus Audio Units on macOS. You can name the instrument or effect you want, such as “use this synth for the bass” or “finish it with this EQ and limiter.”
 - **Catalog and choose plug-ins:** Scan installed plug-ins to record available products, presets, exposed parameters, and compatibility results in a local database. AIDAW can search by musical style or instrumental role and suggest suitable instruments or effects from your collection using audition renders and previously recorded assessments.
@@ -53,7 +54,7 @@ If you do not own any instruments or effects, you can begin with the included GM
 
 1. **The user** describes the music or revision and provides audio or MIDI when needed.
 2. **The AI agent** interprets the request and assembles the production operations through MCP or the API.
-3. **AIDAW** manages the project, performance parts, instruments, mixer, and effects, then renders the audio offline.
+3. **AIDAW** manages the project, performance parts, instruments, mixer, and effects, then plays the result directly or exports it to an audio file.
 4. **The user** listens to the exported result and gives further instructions, which are applied to the project.
 
 Internally, AIDAW keeps MIDI and performances, track processing, level and panning, send effects, and mastering as separate stages. This allows a specific part or mix stage to be changed without rebuilding the entire song from the beginning.
@@ -77,13 +78,14 @@ Stems and separate effect returns can be transferred to another DAW for further 
 
 ## Current scope
 
-AIDAW currently focuses on fixed-tempo, 48 kHz stereo offline production. Real-time recording and playback, tempo changes, sidechains, and arbitrary bus-to-bus routing are not yet supported. Audio Units are supported on macOS; VST3 is supported on macOS and Windows. Compatibility and authorization must be verified for each plug-in product in the environment where it is used.
+AIDAW supports direct playback and offline production at a fixed tempo in 48 kHz stereo. Real-time recording, tempo changes, sidechains, and arbitrary bus-to-bus routing are not yet supported. Playback uses the project revision captured when it starts, so stop and restart playback after editing. Audio Units are supported on macOS; VST3 is supported on macOS and Windows.
 
 ## Documentation
 
 - [Automated setup](docs/AUTO_SETUP.md)
 - [Project, deliverable, and portability format](docs/IMPLEMENTATION_V2.md)
 - [Mixer and part revisions](docs/MIXER_GRAPH.md)
+- [Render-free live player](docs/PLAYBACK.md)
 - [Instrument and preset selection](docs/INSTRUMENT_SELECTION.md)
 - [Remote server operation](docs/REMOTE_SERVER.md)
 - [Architecture design](DESIGN.md)

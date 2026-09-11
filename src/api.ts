@@ -19,6 +19,13 @@ const fmt = z.enum(['VST3', 'AudioUnit']);
 export const definitions = {
   delivery_inspect:{description:'Read the already published delivery manifest and server file paths without rendering or conversion.',schema:z.object({project_id:id}).strict()},
   queue_status:{description:'Show the single server processing lane and FIFO waiting operations. Connections and job reads stay responsive.',schema:z.object({}).strict()},
+  playback_devices:{description:'List audio output devices available on the AIDAW server. Live playback is heard on the server machine.',schema:z.object({}).strict()},
+  playback_start:{description:'Play the current project revision directly through its instruments, track FX, sends, returns and master chain without rendering a file. Playback occupies the single audio-processing lane.',schema:z.object({...projectId,start_frame:frame.default('0'),tail_seconds:z.number().min(0).max(30).default(2),loop:z.boolean().default(false),loop_start_frame:frame.default('0'),loop_end_frame:frame.default('0'),output_device:z.string().min(1).max(500).optional()}).strict()},
+  playback_status:{description:'Read live playback position, revision, device, processing latency and xrun count.',schema:z.object({playback_id:id.optional()}).strict()},
+  playback_pause:{description:'Pause the active player without unloading its plug-ins.',schema:z.object({playback_id:id.optional()}).strict()},
+  playback_resume:{description:'Resume the active player.',schema:z.object({playback_id:id.optional()}).strict()},
+  playback_seek:{description:'Move live playback to an exact 48kHz project frame. Sustained MIDI notes are chased from the new position.',schema:z.object({playback_id:id.optional(),frame}).strict()},
+  playback_stop:{description:'Stop live playback and release the audio device and plug-ins.',schema:z.object({playback_id:id.optional()}).strict()},
   ...knowledgeDefinitions,
   ...contentDefinitions,
   midi_inspect:{description:'Parse SMF 0/1 notes and timing. Report unsupported controllers/program changes; variable tempo is rejected.',schema:z.object({path:z.string().min(1)}).strict()},
@@ -70,13 +77,20 @@ export type ToolName = keyof typeof definitions;
 export async function call(service: Service, name: string, input: unknown): Promise<any> {
   if (!Object.hasOwn(definitions, name)) throw new Error(`Unknown tool: ${name}`);
   const a: any = definitions[name as ToolName].schema.parse(input);
-  const immediate=new Set(['delivery_inspect','queue_status','job_status','job_cancel','project_list','project_inspect','mixer_inspect','asset_list','catalog_search','catalog_inventory_status','catalog_portable_export','catalog_reference_search','content_search','sound_search','effect_search','knowledge_search','system_capabilities','render_start','batch_render','batch_render_resume']);
+  const immediate=new Set(['delivery_inspect','queue_status','playback_start','playback_status','playback_pause','playback_resume','playback_seek','playback_stop','job_status','job_cancel','project_list','project_inspect','mixer_inspect','asset_list','catalog_search','catalog_inventory_status','catalog_portable_export','catalog_reference_search','content_search','sound_search','effect_search','knowledge_search','system_capabilities','render_start','batch_render','batch_render_resume']);
   if(!immediate.has(name))return service.processing.run(name,()=>dispatch(service,name,a));
   return dispatch(service,name,a);
 }
 async function dispatch(service:Service,name:string,a:any):Promise<any>{
   switch(name as ToolName){
     case 'queue_status':return service.processing.status();
+    case 'playback_devices':return service.engine.call({command:'playback_devices'});
+    case 'playback_start':return service.startPlayback(a);
+    case 'playback_status':return service.playbackStatus(a.playback_id);
+    case 'playback_pause':return service.controlPlayback('pause',undefined,a.playback_id);
+    case 'playback_resume':return service.controlPlayback('resume',undefined,a.playback_id);
+    case 'playback_seek':return service.controlPlayback('seek',a.frame,a.playback_id);
+    case 'playback_stop':return service.controlPlayback('stop',undefined,a.playback_id);
     case 'delivery_inspect':{const {readJson}=await import('./storage.js');const {join}=await import('node:path');const {portablePath}=await import('./assets.js');try{const m=await readJson(join(service.dir(a.project_id),'outputs','manifest.json'));return {...m,available:true,files:m.files.map((f:any)=>({...f,server_path:join(service.dir(a.project_id),'outputs',portablePath(f.path))}))};}catch(e:any){if(e.code==='ENOENT')return {available:false,project_id:a.project_id};throw e;}}
     case 'content_discover_roots': return new ContentCatalog(service).discover();
     case 'content_register_root': return new ContentCatalog(service).register(a.name,a.path,a.family);
@@ -115,7 +129,7 @@ async function dispatch(service:Service,name:string,a:any):Promise<any>{
     case 'sound_assess': return new Knowledge(service).assess(a);
     case 'knowledge_search': return new Knowledge(service).search(a.query,a.kind,a.limit);
     case 'system_capabilities': return { ...await service.engine.call({ command: 'capabilities' }), project_schema: 2, ppq: 960, instrument_selection_policy:'plugin_first; inspect content libraries and audition before choosing. Basic sounds only with explicit allow_basic.', builtin_sounds: [],
-      limitations: ['fixed tempo', 'stereo offline only', 'static latency only; changes during rendering require restart', 'instrument/insert/master automation at 64-sample control intervals; no CC/sidechains yet', 'LUFS/true peak measurement requires FFmpeg; no automatic listening judgment', 'one-level pre/post-fader sends; bus-to-bus routing unsupported', 'bundle import capped at 512 MiB compressed / 1 GiB expanded', 'audio input fixed at 48 kHz; explicit SRC required for other rates'] };
+      limitations: ['fixed tempo and 48kHz stereo for offline rendering and live playback', 'live playback uses a pinned revision; stop and restart after project edits', 'static latency only; changes during processing require restart', 'instrument/insert/master automation at 64-sample control intervals; no CC/sidechains yet', 'LUFS/true peak measurement requires FFmpeg; no automatic listening judgment', 'one-level pre/post-fader sends; bus-to-bus routing unsupported', 'bundle import capped at 512 MiB compressed / 1 GiB expanded', 'audio input fixed at 48 kHz; explicit SRC required for other rates'] };
     case 'catalog_discover': { const result = await service.discover(a.format, a.search_path); return { candidates: result.candidates.slice(a.offset, a.offset + a.limit), total: result.candidates.length }; }
     case 'catalog_inventory': return new PluginInventory(service).start(a.formats,a.max_seconds);
     case 'catalog_inventory_resume': return new PluginInventory(service).start([],a.max_seconds,a.job_id);

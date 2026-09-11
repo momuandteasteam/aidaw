@@ -20,12 +20,14 @@ interface Preset { id: string; name: string; tags: string[]; plugin_id: string; 
 interface Catalog { plugins: CatalogPlugin[]; presets: Preset[] }
 type JobState = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 interface Job { scope:'project'|'track'; track_id?:string; id: string; project_id: string; revision: number; state: JobState; owner_pid: number; output?: string; sha256?: string; analysis?: unknown; latency_compensation?: unknown; render_graph?:any[]; mixer?:any; insert_prints?:Record<string,string>; premaster?:string; instrument_prints?:Record<string,string>; stems?: Record<string, { output: string; analysis: any; latency_compensation: any; automation?: any }>; error?: string }
+interface Playback { id:string;project_id:string;revision:number;state:'queued'|'starting'|'playing'|'paused'|'stopped'|'completed'|'failed'|'cancelled';owner_pid:number;created_at:string;jobPath:string;nativeStatus:string;controller:AbortController;worker?:Awaited<ReturnType<Engine['launchPlayback']>>;done:Promise<void>;error?:string }
 const fingerprint = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 export class Service {
   readonly processing = new ProcessingQueue();
   readonly root: string;
   readonly engine: Engine;
   private jobs = new Map<string, { controller: AbortController; done: Promise<void> }>();
+  private playback?:Playback;
   private renderReservations = 0;
   constructor(root = process.env.AIDAW_HOME ?? join(process.cwd(), '.aidaw'), engine = new Engine()) { this.root = resolve(root); this.engine = engine; this.engine.processing=this.processing; }
   dir(projectId: string) { return join(this.root, 'projects', id.parse(projectId)); }
@@ -276,6 +278,41 @@ export class Service {
     this.jobs.set(job.id, { controller, done }); return { job_id: job.id, revision: job.revision, state: job.state };
     } finally { --this.renderReservations; }
   }
+  async startPlayback(args:{project_id:string;start_frame:string;tail_seconds:number;loop:boolean;loop_start_frame:string;loop_end_frame:string;output_device?:string}){
+    if(this.playback&&!['stopped','completed','failed','cancelled'].includes(this.playback.state))throw new Error(`Playback already active: ${this.playback.id}`);
+    const p=await this.read(args.project_id),resolved=await this.resolvedProject(p),id=randomUUID();
+    const job=await newJob(this.dir(p.id),{kind:'playback',project_id:p.id,revision:p.revision},id),nativeStatus=join(job.path,'work','player-status.json');
+    await atomicJson(join(job.path,'snapshots','input.json'),p);
+    const controller=new AbortController();let session:Playback={id,project_id:p.id,revision:p.revision,state:'queued',owner_pid:process.pid,created_at:new Date().toISOString(),jobPath:job.path,nativeStatus,controller,done:Promise.resolve()};
+    const persist=()=>atomicJson(join(job.path,'status.json'),{id,kind:'playback',project_id:p.id,revision:p.revision,state:session.state,owner_pid:process.pid,created_at:session.created_at,...(session.error?{error:session.error}:{})});
+    this.playback=session;await persist();
+    const done=(async()=>{
+      try{await this.processing.run('playback',async()=>{
+        session.state='starting';await persist();
+        const input=join(job.path,'work','player-request.json'),response=join(job.path,'work','player-response.json'),control=join(job.path,'work','player-control.json');
+        session.worker=await this.engine.launchPlayback({command:'playback',project:resolved,status_path:nativeStatus,control_path:control,start_frame:args.start_frame,tail_seconds:args.tail_seconds,loop:args.loop,loop_start_frame:args.loop_start_frame,loop_end_frame:args.loop_end_frame,output_device:args.output_device??''},{input,response,control},{signal:controller.signal});
+        await session.worker.ready;session.state='playing';await persist();const result=await session.worker.done;session.state=result.state;await persist();
+      },{id,signal:controller.signal});}
+      catch(error){session.state=controller.signal.aborted?'cancelled':'failed';session.error=String(error);await persist();}
+    })();
+    session.done=done;void done.catch(()=>{});
+    return {playback_id:id,project_id:p.id,revision:p.revision,state:session.state,mode:'live_project_graph',rendered_file_created:false};
+  }
+  async playbackStatus(playbackId?:string){
+    const session=this.playback;if(!session||playbackId&&session.id!==playbackId)throw new Error('Playback session not found');
+    let native:any;try{native=await readJson(session.nativeStatus);}catch(error:any){if(error.code!=='ENOENT')throw error;}
+    return {playback_id:session.id,project_id:session.project_id,revision:session.revision,state:native?.state??session.state,created_at:session.created_at,...(native??{}),...(session.error?{error:session.error}:{})};
+  }
+  async controlPlayback(action:'pause'|'resume'|'seek'|'stop',frame?:string,playbackId?:string){
+    const session=this.playback;if(!session||playbackId&&session.id!==playbackId)throw new Error('Playback session not found');
+    if(['stopped','completed','failed','cancelled'].includes(session.state))return this.playbackStatus(playbackId);
+    for(let i=0;!session.worker&&session.state==='starting'&&i<500;i++)await new Promise(resolve=>setTimeout(resolve,10));
+    if(action==='stop'&&!session.worker){session.controller.abort();await session.done;return this.playbackStatus(playbackId);}
+    if(!session.worker)throw new Error('Playback is queued; stop it or wait until the audio device is ready');
+    if(session.state==='starting')await session.worker.ready;
+    await session.worker.command(action,frame);if(action==='pause')session.state='paused';if(action==='resume'||action==='seek')session.state='playing';if(action==='stop')await session.done;
+    return this.playbackStatus(playbackId);
+  }
   async findJob(jobId:string) {
     const library=join(this.root,'PluginLibrary.aidaw','jobs',id.parse(jobId),'status.json');try{await readFile(library);return library;}catch(e:any){if(e.code!=='ENOENT')throw e;}
     let names:string[]=[];try{names=await readdir(join(this.root,'projects'));}catch(e:any){if(e.code!=='ENOENT')throw e;}
@@ -301,7 +338,7 @@ export class Service {
   }
   trackBackground(jobId:string,controller:AbortController,done:Promise<void>){this.jobs.set(jobId,{controller,done});void done.finally(()=>this.jobs.delete(jobId)).catch(()=>{});}
   async wait(jobId: string) { await this.jobs.get(jobId)?.done; return this.jobStatus(jobId); }
-  async close() { this.processing.shutdown(); const pending = [...this.jobs.values()]; for (const j of pending) j.controller.abort(); await Promise.allSettled(pending.map(j => j.done)); await this.processing.idle(); }
+  async close() { if(this.playback&&!['stopped','completed','failed','cancelled'].includes(this.playback.state)){if(this.playback.worker)await this.playback.worker.command('stop').catch(()=>{});else this.playback.controller.abort();}this.processing.shutdown(); const pending = [...this.jobs.values()]; for (const j of pending) j.controller.abort(); await Promise.allSettled([...pending.map(j => j.done),...(this.playback?[this.playback.done]:[])]); await this.processing.idle(); }
   async exportNotationMidi(projectId:string){const p=await this.read(projectId);p.tracks=p.tracks.map(t=>({...t,notes:t.notes.filter(n=>n.purpose!=='keyswitch').map(n=>({...n,pitch:n.display_pitch??n.pitch}))}));const output=join(this.dir(projectId),'outputs','MIDI','notation.mid');await writeFile(output,exportMidi(p));return {output,revision:p.revision,role:'notation_not_plugin_performance'};}
   async exportMidi(projectId: string) {
     const p = await this.read(projectId), output = join(this.dir(projectId), 'outputs','MIDI','performance.mid');

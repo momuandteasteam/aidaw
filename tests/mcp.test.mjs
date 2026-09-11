@@ -11,11 +11,11 @@ test('real MCP stdio client discovers tools and creates/edits/renders a project'
   const transport = new StdioClientTransport({ command: process.execPath, args: [resolve('dist/mcp.js')],
     env: { ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)), AIDAW_HOME: root }, stderr: 'pipe' });
   await client.connect(transport); t.after(() => client.close());
-  const list = await client.listTools(); assert.ok(list.tools.some(t => t.name === 'project_apply'));
+  const list = await client.listTools(); assert.ok(list.tools.some(t => t.name === 'project_apply'));assert.ok(list.tools.some(t=>t.name==='playback_start'));assert.ok(list.tools.some(t=>t.name==='playback_seek'));
   async function api(name, args) {
     const r = await client.callTool({ name, arguments: args }); assert.ok(!r.isError, JSON.stringify(r)); return JSON.parse(r.content[0].text);
   }
-  const caps = await api('system_capabilities', {}); assert.ok(caps.formats.includes('VST3'));
+  const caps = await api('system_capabilities', {}); assert.ok(caps.formats.includes('VST3'));assert.equal(caps.realtime_playback,true);
   await api('project_create', create);
   await api('project_apply', { project_id: 'song', base_revision: 0, request_id: 'mcp-edit', operations: [{ op: 'add_track', track }] });
   const j = await api('render_start', { project_id: 'song' });

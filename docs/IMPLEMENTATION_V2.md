@@ -62,7 +62,7 @@ bundle_importは新しいIDへ取り込み、相対パス、Windows禁則名、U
 
 macOSのAU/VST3とWindowsのVST3を共通C++/TypeScript実装で扱う。ホスト型CIでは重いネイティブビルドを実行せず、macOSとWindowsの各実機で検証する。今回の実行検証はmacOSで行い、Windows商用プラグイン実機の成功とは区別する。
 
-48 kHz、ステレオoffline、固定tempo、1段のpost-fader sendが現在の範囲。sidechain、bus-to-busの任意routing、可変tempo、CC、他sample rateの自動変換、リアルタイムtransport、ベクトル類似検索は未対応。非対応はstrict schemaまたは明示エラーにし、対応済みとして扱わない。通常の音色・用途検索は登録済みの文とタグの検索で実装する。
+48 kHz、ステレオ、固定tempoのオフラインレンダーと音声デバイスへの直接再生、1段のpre/post-fader sendが現在の範囲。直接再生は開始時のrevisionを固定し、音源、track FX、send、return、master FX、automation、静的PDCを同じ常駐ワーカーで処理する。sidechain、bus-to-busの任意routing、可変tempo、CC、他sample rateの自動変換、リアルタイム録音、ベクトル類似検索は未対応。
 
 project_cleanupは成功jobのworkに限定し、素材・凍結・候補artifacts・失敗jobを保持する。プロジェクト外の素材や既存成果物は変更しない。
 

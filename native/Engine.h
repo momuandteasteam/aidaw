@@ -152,6 +152,7 @@ class Builtin {
     struct Voice { int note, channel; double phase, velocity, age, release; };
     std::vector<Voice> voices; uint32_t seed = 1;
 public:
+    void reset() { voices.clear(); seed = 1; }
     void process(juce::AudioBuffer<float>& b, const juce::MidiBuffer& midi, const String& sound) {
         auto it = midi.begin(); b.clear();
         for (int i = 0; i < b.getNumSamples(); ++i) {
@@ -192,13 +193,13 @@ struct Chain {
         // Their one-request worker is terminated immediately after its durable JSON response.
         if (!requiresIsolatedExit) for (auto& p : plugins) p->releaseResources();
     }
-    void add(juce::AudioPluginFormatManager& m, const var& s, Playhead& head, bool instrument) {
+    void add(juce::AudioPluginFormatManager& m, const var& s, Playhead& head, bool instrument, bool realtime = false) {
         auto p = load(m, s); p->disableNonMainBuses(); auto layout = p->getBusesLayout();
         if (!layout.outputBuses.isEmpty()) layout.outputBuses.getReference(0) = juce::AudioChannelSet::stereo();
         if (!layout.inputBuses.isEmpty()) layout.inputBuses.getReference(0) = instrument ? juce::AudioChannelSet::disabled() : juce::AudioChannelSet::stereo();
         check(p->setBusesLayout(layout), "Required stereo layout not supported");
         check(p->getChannelCountOfBus(false, 0) == 2 && p->getTotalNumInputChannels() <= 2 && p->getTotalNumOutputChannels() <= 64, "Stereo main output required; extra inputs are not supported");
-        p->setNonRealtime(true); p->setPlayHead(&head); p->setRateAndBufferSizeDetails(rate, block); p->prepareToPlay(rate, block);
+        p->setNonRealtime(!realtime); p->setPlayHead(&head); p->setRateAndBufferSizeDetails(rate, block); p->prepareToPlay(rate, block);
         // MODO BASS 2 initializes its physical model after prepareToPlay.
         // Prime with silence before musical time starts so the first note is retained.
         if (instrument && p->getPluginDescription().name == "MODO BASS 2"
@@ -220,7 +221,7 @@ struct Chain {
         if (kontakt) minimumProcessFrames = std::max<juce::int64>(minimumProcessFrames, static_cast<juce::int64>(4 * rate));
         plugins.push_back(std::move(p));
     }
-    void process(juce::AudioBuffer<float>& b, juce::MidiBuffer& midi) {
+    void process(juce::AudioBuffer<float>& b, juce::MidiBuffer& midi, bool realtime = false) {
         for (size_t index = 0; index < plugins.size(); ++index) {
             auto& p = plugins[index];
             check(p->getLatencySamples() == latencies[index], "Plugin latency changed during rendering; restart the render after settings stabilize");
@@ -230,7 +231,7 @@ struct Chain {
             scratch.clear();
             for (int c = 0; c < 2; ++c) scratch.copyFrom(c, 0, b, c, 0, b.getNumSamples());
             p->processBlock(scratch, midi);
-            if (messageLoopMs[index] > 0) juce::MessageManager::getInstance()->runDispatchLoopUntil(messageLoopMs[index]);
+            if (!realtime && messageLoopMs[index] > 0) juce::MessageManager::getInstance()->runDispatchLoopUntil(messageLoopMs[index]);
             check(p->getLatencySamples() == latencies[index], "Plugin latency changed during rendering; restart the render after settings stabilize");
             for (int c = 0; c < 2; ++c) b.copyFrom(c, 0, scratch, c, 0, b.getNumSamples());
         }
@@ -242,6 +243,7 @@ struct Automation {
     struct Lane { juce::AudioProcessorParameter* parameter; std::vector<Point> points; size_t cursor = 0; bool linear; };
     std::vector<Lane> lanes;
     int updates = 0;
+    void reset() { for (auto& lane : lanes) lane.cursor = 0; }
     void prepare(const var& spec, Chain& chain, double bpm, size_t index=0) {
         if (!spec.isArray()) return;
         for (const auto& a : arr(spec)) {
@@ -434,11 +436,12 @@ var render(juce::AudioPluginFormatManager& m, const var& request) {
     writer.reset(); return obj({{"automation", automationReport}, {"output", output.getFullPathName()}, {"analysis", analyze(output)}, {"revision", project["revision"]},
         {"latency_compensation", obj({{"tracks", latencyReport}, {"master_samples", master.latency}, {"trimmed_samples", totalLatency}})}});
 }
+#include "Player.h"
 var execute(const var& r) {
     juce::AudioPluginFormatManager m; juce::addDefaultFormatsToManager(m); auto command = r["command"].toString();
     if (command == "capabilities") {
         juce::Array<var> formats; for (auto* f : m.getFormats()) formats.add(f->getName());
-        return obj({{"version", "0.1.0"}, {"formats", formats}, {"sample_rate", 48000}, {"platform", juce::SystemStats::getOperatingSystemName()}, {"offline", true}, {"latency_compensation", "static track and master chains"}});
+        return obj({{"version", "0.1.0"}, {"formats", formats}, {"sample_rate", 48000}, {"platform", juce::SystemStats::getOperatingSystemName()}, {"offline", true}, {"realtime_playback", true}, {"latency_compensation", "static track, send return and master chains"}});
     }
     if (command == "discover") {
         auto* f = getFormat(m, r["format"].toString()); auto paths = f->getDefaultLocationsToSearch();
@@ -453,6 +456,8 @@ var execute(const var& r) {
     if (command == "inspect") return inspect(m, r["plugin"]);
     if (command == "modo_bass_preset") return modoPreset(m, r);
     if (command == "kontakt_preset") return kontaktPreset(m, r);
+    if (command == "playback_devices") return playbackDevices();
+    if (command == "playback") return playback(m, r);
     if (command == "render") return render(m, r);
     if (command == "compare_audio") return compareAudio(r);
     if (command == "analyze") return analyze(path(r["path"]));

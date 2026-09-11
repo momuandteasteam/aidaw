@@ -17,7 +17,7 @@
 - 音楽的な意図と実際の演奏データを両方保存する。「サビ」「コード進行」「役割」の情報を残して、部分修正を可能にする。
 - MCPは操作の入口。独立した内部APIを用意し、CLI・将来の別エージェントにも同じ機能を公開する。
 - 曲の変更は差分単位。指定外の小節やトラックを作り直さず、取り消し・比較・復元できる。
-- オフライン書き出しを先に完成させる。低遅延の演奏やライブ録音は後段階。
+- 完成書き出しはオフラインで行い、制作確認には同じ設定を音声デバイスへ直接流す。ライブ録音は後段階。
 
 ## 3. 構成
 
@@ -45,7 +45,7 @@ CodexはローカルのSTDIOとStreamable HTTPのMCP接続をサポートして�
 | 層 | 推奨候補 | 役割・判断理由 |
 | --- | --- | --- |
 | MCP・制御API | TypeScript / Node.js | JSON Schema、入力検証、検索、非同期ジョブ管理 |
-| 音声エンジン | C++20 / JUCE、独自の小さなオフラインシーケンサー | 同じソースでAU/VST3をホスト。プロジェクト形式とエンジンを分離 |
+| 音声エンジン | C++20 / JUCE、独自の小さなシーケンサー | 同じソースでAU/VST3をホストし、オフライン書き出しと直接再生を行う。プロジェクト形式とエンジンを分離 |
 | エンジンとの通信 | 子プロセスと要求・応答JSONファイル | Node.js spawnで両OS共通。プラグインの標準出力がプロトコルを壊さない |
 | 楽曲データ | バージョン付きJSON + MIDI + 音声・プラグイン状態ファイル | 編集対象を明示し、音源の内部状態も復元 |
 | カタログ | 初期版JSON、拡張時SQLite | 初期版も構造化タグ・検索・件数制限を持つ |
@@ -54,7 +54,7 @@ CodexはローカルのSTDIOとStreamable HTTPのMCP接続をサポートして�
 
 JUCEはプラグインの生成管理と音声処理グラフを提供する。ただしグラフだけでトラック編集・プロジェクト保存・テンポ管理まで完成するわけではない。[AudioPluginFormatManager](https://docs.juce.com/master/classjuce_1_1AudioPluginFormatManager.html)、[AudioProcessorGraph](https://docs.juce.com/master/classjuce_1_1AudioProcessorGraph.html)
 
-実装判断：初期の固定テンポ・オフライン処理はJUCE上の独自シーケンサーで実装する。別のDAWデータモデルへの依存を増やさず、共通JSON・MIDIスケジュールを直接実行するため。Tracktion Engineはリアルタイム編集・複雑なルーティングの段階で再評価する。JUCEとTracktionのライセンスは別であり、公開・配布方式と合わせて採用前に確認する。[Tracktion Engine](https://github.com/Tracktion/tracktion_engine)、[JUCE利用条件](https://juce.com/legal/juce-8-licence/)
+実装判断：固定テンポのオフライン処理と直接再生はJUCE上の独自シーケンサーで実装する。別のDAWデータモデルへの依存を増やさず、共通JSON・MIDIスケジュールを直接実行するため。Tracktion Engineはリアルタイム録音・複雑なルーティングの段階で再評価する。JUCEとTracktionのライセンスは別であり、公開・配布方式と合わせて採用前に確認する。[Tracktion Engine](https://github.com/Tracktion/tracktion_engine)、[JUCE利用条件](https://juce.com/legal/juce-8-licence/)
 
 代替案：
 
@@ -221,7 +221,7 @@ send/bus、sidechain、詳細オートメーション、遅延補正試験、解
 
 ## 11. 未確定事項
 
-今後の調整事項は、優先する音源・エフェクトの製品名とバージョン、低遅延再生の優先度、個人利用か配布予定か。現時点では「macOS / Windows共通設計、オフライン優先」とし、手元のMacで実行検証、WindowsはCIと実機で別途検証する。
+今後の調整事項は、優先する音源・エフェクトの製品名とバージョン、実機ごとの低遅延設定、リアルタイム録音の要否。現時点ではmacOS / Windows共通設計とし、オフライン書き出しと固定テンポの直接再生を手元のMacで検証、Windowsは実機で別途検証する。
 
 ## 12. マルチプラットフォーム実装契約
 
