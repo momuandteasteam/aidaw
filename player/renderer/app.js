@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
-const ui = { list: $('projectList'), search: $('search'), title: $('title'), details: $('details'), state: $('stateLabel'), seek: $('seek'), current: $('currentTime'), duration: $('duration'), play: $('playButton'), stop: $('stopButton'), device: $('device'), latency: $('latency'), xruns: $('xruns'), revision: $('revision'), message: $('message'), dataDir: $('dataDirButton') };
-let projects = [], selected, details, playback, dragging = false, timer;
+const ui = { list: $('projectList'), search: $('search'), title: $('title'), details: $('details'), state: $('stateLabel'), seek: $('seek'), current: $('currentTime'), duration: $('duration'), play: $('playButton'), stop: $('stopButton'), device: $('device'), latency: $('latency'), xruns: $('xruns'), revision: $('revision'), message: $('message'), dataDir: $('dataDirButton'), loadingShield: $('loadingShield'), loadingTitle: $('loadingTitle'), loadingDescription: $('loadingDescription') };
+let projects = [], selected, details, playback, dragging = false, loading = false, loadingKind, timer;
 const terminal = new Set(['stopped', 'completed', 'failed', 'cancelled']);
 
 function formatTime(seconds) {
@@ -13,6 +13,23 @@ function showError(error) { ui.message.textContent = error?.message ?? String(er
 function clearError() { ui.message.textContent = ''; }
 function isActive() { return playback && !terminal.has(playback.state); }
 
+function setLoading(value, kind = loadingKind) {
+  loading = value;
+  loadingKind = value ? kind : undefined;
+  ui.loadingTitle.textContent = kind === 'playback' ? '音源を読み込み中…' : 'プロジェクトを読み込み中…';
+  ui.loadingDescription.textContent = kind === 'playback' ? '音源とエフェクトの準備が終わるまで操作できません' : '設定の読み込みが終わるまで操作できません';
+  document.body.classList.toggle('loading', value);
+  document.querySelector('.workspace').setAttribute('aria-busy', String(value));
+  ui.loadingShield.hidden = !value;
+  ui.search.disabled = value;
+  ui.dataDir.disabled = value;
+  ui.device.disabled = value;
+  ui.seek.disabled = value || !details;
+  ui.play.disabled = value || !details;
+  ui.stop.disabled = value || !isActive();
+  for (const button of ui.list.querySelectorAll('button')) button.disabled = value;
+}
+
 function renderProjects() {
   const query = ui.search.value.trim().toLocaleLowerCase();
   const visible = projects.filter(project => `${project.name} ${project.project_id}`.toLocaleLowerCase().includes(query));
@@ -21,6 +38,7 @@ function renderProjects() {
   for (const project of visible) {
     const button = document.createElement('button');
     button.className = `project${selected === project.project_id ? ' active' : ''}`;
+    button.disabled = loading;
     const name = document.createElement('strong'); name.textContent = project.name;
     const sub = document.createElement('small'); sub.textContent = `rev ${project.revision} · ${project.project_id}`;
     button.append(name, sub); button.addEventListener('click', () => selectProject(project.project_id)); ui.list.append(button);
@@ -28,32 +46,37 @@ function renderProjects() {
 }
 
 async function selectProject(projectId) {
-  clearError(); selected = projectId; renderProjects(); ui.state.textContent = 'LOADING';
+  if (loading || projectId === selected && details?.id === projectId) return;
+  clearError(); selected = projectId; details = undefined; renderProjects(); ui.state.textContent = 'LOADING'; setLoading(true, 'project');
   try {
+    if (isActive()) playback = await window.aidaw.stop();
     details = await window.aidaw.project(projectId);
     ui.title.textContent = details.name;
     ui.details.textContent = `${details.track_count} tracks · ${details.note_count} notes · ${details.bpm} BPM`;
     ui.seek.max = details.duration_frames; ui.seek.value = 0;
     ui.current.textContent = '0:00'; ui.duration.textContent = formatTime(details.duration_seconds);
     ui.revision.textContent = `REV ${details.revision}`; ui.state.textContent = 'READY';
-    ui.play.disabled = false; ui.stop.disabled = true;
   } catch (error) { ui.state.textContent = 'ERROR'; showError(error); }
+  finally { setLoading(false); }
 }
 
 async function togglePlay() {
-  if (!selected) return;
+  if (!selected || loading) return;
   clearError(); ui.play.disabled = true;
   try {
     if (playback?.state === 'playing' || playback?.state === 'starting' || playback?.state === 'queued') playback = await window.aidaw.pause();
     else if (playback?.state === 'paused') playback = await window.aidaw.resume();
-    else playback = await window.aidaw.start({ project_id: selected, start_frame: ui.seek.value, output_device: ui.device.value || undefined });
+    else {
+      setLoading(true, 'playback');
+      playback = await window.aidaw.start({ project_id: selected, start_frame: ui.seek.value, output_device: ui.device.value || undefined });
+    }
     updateStatus(playback);
-  } catch (error) { showError(error); }
-  finally { ui.play.disabled = false; }
+  } catch (error) { setLoading(false); showError(error); }
+  finally { if (!loading) ui.play.disabled = false; }
 }
 
 async function stop() {
-  if (!isActive()) return;
+  if (!isActive() || loading) return;
   try { playback = await window.aidaw.stop(); updateStatus(playback); }
   catch (error) { showError(error); }
 }
@@ -61,6 +84,8 @@ async function stop() {
 function updateStatus(status) {
   if (!status) return;
   playback = status;
+  if (loadingKind === 'playback' && (['playing', 'paused'].includes(status.state) || terminal.has(status.state))) setLoading(false);
+  if (loading) return;
   ui.state.textContent = String(status.state ?? 'ready').toUpperCase();
   ui.play.textContent = ['playing', 'starting', 'queued'].includes(status.state) ? '❚❚' : '▶';
   ui.stop.disabled = !isActive();
@@ -80,6 +105,7 @@ async function poll() {
 }
 
 function applyBootstrap(data, preferences = {}) {
+  selected = undefined; details = undefined; playback = undefined;
   projects = data.projects.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
   ui.dataDir.title = data.data_dir;
   ui.device.replaceChildren();

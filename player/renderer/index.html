@@ -19,6 +19,7 @@
         <div id="projectList" class="project-list" aria-label="プロジェクト一覧"></div>
       </aside>
       <section class="deck">
+        <div id="loadingShield" class="loading-shield" hidden aria-live="polite"><div class="spinner"></div><strong id="loadingTitle">プロジェクトを読み込み中…</strong><span id="loadingDescription">設定の読み込みが終わるまでお待ちください</span></div>
         <div class="cover" aria-hidden="true"><div class="orb"></div><div class="wave">▂▅▃▇▆▂▅▃</div></div>
         <div class="meta"><p id="stateLabel" class="state">READY</p><h2 id="title">プロジェクトを選択</h2><p id="details">現在の設定をレンダリングせずに再生します</p></div>
         <div class="timeline"><input id="seek" type="range" min="0" max="1" value="0" step="1" aria-label="再生位置"><div class="times"><span id="currentTime">0:00</span><span id="duration">0:00</span></div></div>

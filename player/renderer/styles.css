@@ -22,7 +22,15 @@ aside { padding: 16px 10px 14px; overflow: hidden; display: flex; flex-direction
 .project strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
 .project small { display: block; color: #7f8aa7; margin-top: 4px; }
 .empty { color: #7f8aa7; padding: 24px 12px; text-align: center; }
-.deck { padding: 28px 34px 22px; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.deck { position: relative; padding: 28px 34px 22px; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.loading-shield { position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; border-radius: 20px; background: #0d111bd9; backdrop-filter: blur(8px); }
+.loading-shield[hidden] { display: none; }
+.loading-shield strong { font-size: 15px; letter-spacing: .04em; }
+.loading-shield span { color: #8490aa; font-size: 11px; }
+.spinner { width: 38px; height: 38px; margin-bottom: 8px; border: 3px solid #34405e; border-top-color: #63ddff; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+body.loading .project { opacity: .45; cursor: wait; }
+body.loading button, body.loading input, body.loading select { cursor: wait; }
 .cover { width: min(230px, 34vh); aspect-ratio: 1; position: relative; display: grid; place-items: center; margin-top: 3px; background: linear-gradient(145deg, #12203a, #1a1640); border: 1px solid #46577a; border-radius: 28px; overflow: hidden; box-shadow: 0 28px 70px #02040a99, inset 0 0 45px #60ccff1b; }
 .orb { width: 54%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 36% 30%, #ecfbff 0 3%, #56d9ff 8%, #5b60ff 39%, #431087 64%, #050710 72%); box-shadow: 0 0 60px #486dff99; }
 .wave { position: absolute; bottom: 22px; color: #b8f4ff; letter-spacing: 5px; font-size: 17px; text-shadow: 0 0 12px #53d9ff; }
