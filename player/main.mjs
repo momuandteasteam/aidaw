@@ -63,7 +63,8 @@ async function projectDetails(projectId) {
     duration_frames: String(frames),
     duration_seconds: frames / project.sample_rate,
     track_count: project.tracks.length,
-    note_count: project.tracks.reduce((sum, track) => sum + track.note_count, 0)
+    note_count: project.tracks.reduce((sum, track) => sum + track.note_count, 0),
+    playable: project.tracks.length > 0
   };
 }
 

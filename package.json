@@ -23,7 +23,7 @@
     "player:package:win": "npm run build && electron-packager . 'AIDAW Player' --platform=win32 --arch=x64 --app-version=0.1.0 --out=release --overwrite --prune=true --ignore='^/(?:\\.aidaw|build|release|coverage|tmp|outputs)(?:/|$)' --extra-resource=build/bin/aidaw-engine.exe --extra-resource=build/starter-assets",
     "configure:native": "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release",
     "build:native": "cmake --build build --config Release --parallel 4",
-    "test": "npm run build && node --test tests/project.test.mjs tests/engine.test.mjs tests/mcp.test.mjs tests/ni.test.mjs tests/knowledge.test.mjs tests/delivery.test.mjs tests/mixer.test.mjs tests/content.test.mjs tests/setup.test.mjs tests/remote-config.test.mjs tests/state-capture.test.mjs tests/repository.test.mjs tests/http.test.mjs tests/queue.test.mjs tests/player.test.mjs tests/starter.test.mjs tests/plugin-inventory.test.mjs",
+    "test": "npm run build && node --test tests/project.test.mjs tests/engine.test.mjs tests/mcp.test.mjs tests/ni.test.mjs tests/knowledge.test.mjs tests/delivery.test.mjs tests/mixer.test.mjs tests/content.test.mjs tests/setup.test.mjs tests/remote-config.test.mjs tests/state-capture.test.mjs tests/repository.test.mjs tests/http.test.mjs tests/queue.test.mjs tests/player.test.mjs tests/player-ui.test.mjs tests/starter.test.mjs tests/plugin-inventory.test.mjs",
     "start": "node dist/mcp.js",
     "demo": "node scripts/demo.mjs",
     "setup": "node scripts/setup.mjs",

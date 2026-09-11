@@ -1,3 +1,5 @@
+import { projectIsPlayable, startFrame, statusBelongsToProject } from './model.mjs';
+
 const $ = id => document.getElementById(id);
 const ui = { list: $('projectList'), search: $('search'), title: $('title'), details: $('details'), state: $('stateLabel'), seek: $('seek'), current: $('currentTime'), duration: $('duration'), play: $('playButton'), stop: $('stopButton'), device: $('device'), latency: $('latency'), xruns: $('xruns'), revision: $('revision'), message: $('message'), dataDir: $('dataDirButton'), loadingShield: $('loadingShield'), loadingTitle: $('loadingTitle'), loadingDescription: $('loadingDescription') };
 let projects = [], selected, details, playback, dragging = false, loading = false, loadingKind, timer;
@@ -24,8 +26,8 @@ function setLoading(value, kind = loadingKind) {
   ui.search.disabled = value;
   ui.dataDir.disabled = value;
   ui.device.disabled = value;
-  ui.seek.disabled = value || !details;
-  ui.play.disabled = value || !details;
+  ui.seek.disabled = value || !projectIsPlayable(details);
+  ui.play.disabled = value || !projectIsPlayable(details);
   ui.stop.disabled = value || !isActive();
   for (const button of ui.list.querySelectorAll('button')) button.disabled = value;
 }
@@ -49,26 +51,29 @@ async function selectProject(projectId) {
   if (loading || projectId === selected && details?.id === projectId) return;
   clearError(); selected = projectId; details = undefined; renderProjects(); ui.state.textContent = 'LOADING'; setLoading(true, 'project');
   try {
-    if (isActive()) playback = await window.aidaw.stop();
+    if (isActive()) await window.aidaw.stop();
+    playback = undefined;
     details = await window.aidaw.project(projectId);
     ui.title.textContent = details.name;
-    ui.details.textContent = `${details.track_count} tracks · ${details.note_count} notes · ${details.bpm} BPM`;
+    ui.details.textContent = projectIsPlayable(details) ? `${details.track_count} tracks · ${details.note_count} notes · ${details.bpm} BPM` : '再生できるトラックがありません（管理用プロジェクト）';
     ui.seek.max = details.duration_frames; ui.seek.value = 0;
     ui.current.textContent = '0:00'; ui.duration.textContent = formatTime(details.duration_seconds);
-    ui.revision.textContent = `REV ${details.revision}`; ui.state.textContent = 'READY';
+    ui.revision.textContent = `REV ${details.revision}`; ui.state.textContent = projectIsPlayable(details) ? 'READY' : 'NO AUDIO'; clearError();
   } catch (error) { ui.state.textContent = 'ERROR'; showError(error); }
   finally { setLoading(false); }
 }
 
 async function togglePlay() {
-  if (!selected || loading) return;
+  if (!selected || loading || !projectIsPlayable(details)) return;
   clearError(); ui.play.disabled = true;
   try {
     if (playback?.state === 'playing' || playback?.state === 'starting' || playback?.state === 'queued') playback = await window.aidaw.pause();
     else if (playback?.state === 'paused') playback = await window.aidaw.resume();
     else {
       setLoading(true, 'playback');
-      playback = await window.aidaw.start({ project_id: selected, start_frame: ui.seek.value, output_device: ui.device.value || undefined });
+      const frame = startFrame(ui.seek.value, ui.seek.max);
+      if (frame === '0') { ui.seek.value = 0; ui.current.textContent = '0:00'; }
+      playback = await window.aidaw.start({ project_id: selected, start_frame: frame, output_device: ui.device.value || undefined });
     }
     updateStatus(playback);
   } catch (error) { setLoading(false); showError(error); }
@@ -83,6 +88,7 @@ async function stop() {
 
 function updateStatus(status) {
   if (!status) return;
+  if (!statusBelongsToProject(status, selected)) return;
   playback = status;
   if (loadingKind === 'playback' && (['playing', 'paused'].includes(status.state) || terminal.has(status.state))) setLoading(false);
   if (loading) return;
@@ -99,7 +105,7 @@ function updateStatus(status) {
 }
 
 async function poll() {
-  try { const status = await window.aidaw.status(); if (status) updateStatus(status); }
+  try { const status = await window.aidaw.status(); if (statusBelongsToProject(status, selected)) updateStatus(status); }
   catch (error) { showError(error); }
   timer = setTimeout(poll, 250);
 }
