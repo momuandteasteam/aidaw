@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:">
+  <title>AIDAW Player</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div><p class="eyebrow">RENDER-FREE PROJECT PLAYBACK</p><h1>AIDAW <span>Player</span></h1></div>
+      <button id="dataDirButton" class="ghost" title="AIDAWデータフォルダを変更">データフォルダ</button>
+    </header>
+    <section class="workspace">
+      <aside>
+        <label class="search"><span>⌕</span><input id="search" type="search" placeholder="プロジェクトを検索"></label>
+        <div id="projectList" class="project-list" aria-label="プロジェクト一覧"></div>
+      </aside>
+      <section class="deck">
+        <div class="cover" aria-hidden="true"><div class="orb"></div><div class="wave">▂▅▃▇▆▂▅▃</div></div>
+        <div class="meta"><p id="stateLabel" class="state">READY</p><h2 id="title">プロジェクトを選択</h2><p id="details">現在の設定をレンダリングせずに再生します</p></div>
+        <div class="timeline"><input id="seek" type="range" min="0" max="1" value="0" step="1" aria-label="再生位置"><div class="times"><span id="currentTime">0:00</span><span id="duration">0:00</span></div></div>
+        <div class="transport">
+          <button id="stopButton" class="round secondary" aria-label="停止">■</button>
+          <button id="playButton" class="round primary" aria-label="再生">▶</button>
+          <div class="device-wrap"><label for="device">出力</label><select id="device"></select></div>
+        </div>
+        <div class="statusbar"><span id="latency">LATENCY —</span><span id="xruns">XRUN —</span><span id="revision">REV —</span></div>
+        <p id="message" class="message" role="status"></p>
+      </section>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

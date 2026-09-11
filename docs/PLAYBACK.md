@@ -1,6 +1,16 @@
 # レンダリング不要のプレイヤー
 
-現在のプロジェクト設定をWAVへ書き出さず、AIDAWを動かしているマシンの音声出力へ直接流す。編集GUIは持たず、MCP/APIから操作する。
+現在のプロジェクト設定をWAVへ書き出さず、AIDAWを動かしているマシンの音声出力へ直接流す。制作と編集はMCP/APIから行い、再生操作に限ってデスクトップGUIも利用できる。
+
+## AIDAW Player
+
+プロジェクト一覧、出力デバイス、再生・一時停止・停止・シークを操作するクロスプラットフォームの小型デスクトップアプリ。下記APIと同じServiceおよび音声グラフを使い、WAVへの事前レンダリングは行わない。
+
+```bash
+npm run player
+```
+
+macOSアプリを作る場合は `npm run player:package:mac`、WindowsアプリはWindows実機で `npm run player:package:win` を使う。
 
 ## 操作
 
