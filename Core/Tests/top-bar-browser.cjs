@@ -1,0 +1,37 @@
+const {app,BrowserWindow}=require('electron');
+const {readFileSync,writeFileSync,mkdirSync}=require('node:fs');
+const {pathToFileURL}=require('node:url');const path=require('node:path');
+(async()=>{await app.whenReady();const win=new BrowserWindow({show:false,width:440,height:680,webPreferences:{contextIsolation:true,nodeIntegration:false}});
+await win.loadFile(path.join(__dirname,'surface-fixture.html'));
+const root=path.resolve(__dirname,'../..'),base=pathToFileURL(root+'/').href;
+const html=readFileSync(path.join(root,'Core/Source/Desktop/renderer/index.html'),'utf8');
+const result=await win.webContents.executeJavaScript(`(async()=>{
+ document.body.innerHTML=${JSON.stringify(html.match(/<body>([\s\S]*?)<script/)[1])};
+ const link=document.createElement('link');link.rel='stylesheet';link.href=${JSON.stringify(base)}+'Core/Source/Desktop/renderer/styles.css';document.head.append(link);await new Promise(r=>link.onload=r);
+ const calls=[],projects=[{project_id:'song',name:'夜明けのスケッチ',kind:'composition'}],doc={schema_version:3,id:'song',kind:'composition',revision:1,name:'夜明けのスケッチ',composition:{bpm:120,length_ticks:3840,tracks:[{id:'lead',name:'Lead',gain_db:0,pan:0}],buses:[]}};
+ window.aidaw={async bootstrap(){return {api:[],projects,devices:{devices:[]}};},async preferences(){return {};},async api(name,args){calls.push({name,args});if(name==='project_list')return projects;if(name==='project_document')return doc;if(name==='project_save')return {output:'/mock/song.aidaw.zip'};return {};},async saveOutput(output){calls.push({name:'saveOutput',output});},async chooseProjectFolder(){calls.push({name:'chooseProjectFolder'});return null;},async chooseFile(){calls.push({name:'chooseFile'});return null;},async saveControllerPreferences(){},async saveLayoutPreferences(){},async saveSkinPreferences(){}};
+ await import(${JSON.stringify(base)}+'Core/Source/Desktop/renderer/app.js');
+ const $=id=>document.getElementById(id),tick=()=>new Promise(r=>setTimeout(r,20));await tick();
+ const toolbarNames=[...document.querySelectorAll('.project-toolbar>.menu-button:not([hidden])')].map(b=>b.textContent.trim());
+ $('fileMenuButton').click();const labels=[...$('fileMenu').querySelectorAll('button')].map(b=>b.firstChild.textContent);
+ const unavailable=[...$('fileMenu').querySelectorAll('[data-needs-project]')].every(b=>b.disabled&&!b.hidden);
+ document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));const arrowTarget=document.activeElement.dataset.command;
+ document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));const escaped=$('fileMenu').hidden&&document.activeElement===$('fileMenuButton');
+ $('assignmentButton').click();const assignment=$('assignmentDialog').open&&!$('settingsDialog').open&&$('assignmentDialog').contains($('layoutGrid'));$('assignmentClose').click();
+ $('settingsButton').click();const settings=$('settingsDialog').open&&!$('settingsDialog').contains($('layoutGrid'))&&!$('inspectorDisclosure').open;$('settingsClose').click();
+ const menuClick=async type=>{$('fileMenuButton').click();$('fileMenu').querySelector('[data-command="'+type+'"]').click();await tick();};
+ await menuClick('projectList');const listOpened=$('projectListDialog').open;
+ $('projectListRefresh').click();await tick();const refreshed=calls.some(c=>c.name==='project_list');
+ $('projectListItems').querySelector('button').click();await tick();const outputRestored=[...$('fileMenu').querySelectorAll('[data-needs-project]')].every(b=>!b.disabled&&!b.hidden);const selected=!$('projectListDialog').open&&calls.some(c=>c.name==='project_document')&&document.querySelector('#surfaceRoot h2').textContent===doc.name;
+ await menuClick('save');await menuClick('openWorkspace');await menuClick('openFile');
+ await menuClick('create');const createDialog=$('editor').open&&$('editorTitle').textContent==='新規プロジェクト';$('editorCancel').click();await tick();
+ await menuClick('audioExport');const audioExport=[...document.querySelectorAll('.key')].some(b=>b.title.includes('WAV'))||document.querySelector('#inspector').textContent.includes('書き出し');
+ const stage=document.querySelector('.deck-stage').getBoundingClientRect(),dock=document.querySelector('.encoder-panel').getBoundingClientRect();const captions=[...document.querySelectorAll('.encoder-caption')];captions.forEach((c,i)=>c.textContent=['再生音量','再生位置','トラック / RETURN','長いパラメーターの名前'][i]);const parameterNamesFit=captions.every(c=>{const r=c.getBoundingClientRect();return r.bottom<=stage.bottom&&r.left>=stage.left&&r.right<=stage.right&&getComputedStyle(c).whiteSpace==='nowrap';});const squareCover=Math.abs(stage.width-stage.height)<1&&dock.top>=stage.top&&dock.bottom<=stage.bottom&&[...document.querySelectorAll('.key')].every(k=>k.offsetWidth===72&&k.offsetHeight===72);
+ const error=$('message').textContent;
+ $('fileMenuButton').click();const buttons=[...document.querySelectorAll('.project-toolbar>.menu-button:not([hidden])')].map(b=>({width:b.offsetWidth,height:b.offsetHeight,font:getComputedStyle(b).fontSize}));
+ const menuBounds=$('fileMenu').getBoundingClientRect(),withinWindow=menuBounds.left>=0&&menuBounds.right<=innerWidth;
+ const result={parameterNamesFit,squareCover,toolbarNames,labels,unavailable,arrowTarget,escaped,assignment,settings,listOpened,refreshed,selected,outputRestored,createDialog,audioExport,error,calls,buttons,withinWindow};
+ await Promise.all([...document.images].filter(i=>i.hasAttribute('src')).map(i=>i.decode()));return result;
+})()`);
+if(process.env.AIDAW_CAPTURE_TOP_BAR){await new Promise(r=>setTimeout(r,200));const dir=path.join(root,'Core/Build/ui-preview');mkdirSync(dir,{recursive:true});writeFileSync(path.join(dir,'top-bar-implemented.png'),(await win.webContents.capturePage()).toPNG());}
+console.log('TOP_BAR_RESULT '+JSON.stringify(result));win.destroy();app.quit();})().catch(e=>{console.error(e);app.exit(1);});

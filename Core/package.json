@@ -1,0 +1,50 @@
+{
+  "name": "aidaw",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/momuandteasteam/aidaw.git"
+  },
+  "homepage": "https://github.com/momuandteasteam/aidaw#readme",
+  "bugs": {
+    "url": "https://github.com/momuandteasteam/aidaw/issues"
+  },
+  "type": "module",
+  "main": "Source/Desktop/main.mjs",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "node Tools/check-layout.mjs && node Tools/check-docs.mjs && node Tools/build.mjs",
+    "player": "npm run build && electron Source/Desktop/main.mjs",
+    "player:package:mac": "npm run build && node Tools/package-desktop.mjs",
+    "player:package:win": "npm run build && node Tools/package-desktop.mjs --win",
+    "configure:native": "cmake -S . -B Build/Native -DCMAKE_BUILD_TYPE=Release",
+    "build:native": "cmake --build Build/Native --config Release --parallel 4",
+    "test": "npm run build && node Tools/test.mjs Core/Tests/*.test.mjs",
+    "start": "node Build/JS/Server/mcp.js",
+    "demo": "node Tools/demo.mjs",
+    "setup": "node Tools/setup.mjs",
+    "setup:check": "node Tools/setup.mjs --check",
+    "setup:remote:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File Tools/setup-remote-windows.ps1",
+    "check:public": "node Tools/public-check.mjs",
+    "start:http": "node Build/JS/Server/http.js",
+    "inventory:plugins": "node Tools/setup/inventory.mjs",
+    "check:layout": "node Tools/check-layout.mjs",
+    "check:docs": "node Tools/check-docs.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "fflate": "^0.8.3",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "@types/node": "22.19.15",
+    "electron": "44.3.0",
+    "smol-toml": "^1.8.0",
+    "typescript": "5.9.3"
+  }
+}

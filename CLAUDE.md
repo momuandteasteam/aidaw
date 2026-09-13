@@ -1,4 +1,3 @@
 @AGENTS.md
-@docs/INSTRUMENT_SELECTION.md
 
-Claude Codeでセットアップを頼まれた場合は、AGENTS.mdのコマンドに `--client claude` を指定して実行してください。
+共通規約はAGENTS.mdの作業入口から読む。セットアップのクライアント指定だけ `--client claude` を使う。

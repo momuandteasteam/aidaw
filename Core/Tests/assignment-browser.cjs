@@ -1,0 +1,33 @@
+const {app,BrowserWindow}=require('electron');
+const {readFileSync,mkdirSync,writeFileSync}=require('node:fs');
+const {pathToFileURL}=require('node:url');
+const path=require('node:path');
+(async()=>{await app.whenReady();const win=new BrowserWindow({show:false,width:480,height:800,webPreferences:{contextIsolation:true,nodeIntegration:false}});
+await win.loadFile(path.join(__dirname,'surface-fixture.html'));
+const root=path.resolve(__dirname,'../..'),base=pathToFileURL(root+'/').href;
+const html=readFileSync(path.join(root,'Core/Source/Desktop/renderer/index.html'),'utf8');
+const result=await win.webContents.executeJavaScript(`(async()=>{
+ document.body.innerHTML=${JSON.stringify(html.match(/<body>([\s\S]*?)<script/)[1])};
+ const link=document.createElement('link');link.rel='stylesheet';link.href=${JSON.stringify(base)}+'Core/Source/Desktop/renderer/styles.css';document.head.append(link);await new Promise(r=>link.onload=r);
+ const {setupLayoutSettings}=await import(${JSON.stringify(base)}+'Core/Source/Desktop/renderer/layout-settings.mjs');
+ const {buildPads,createDeckState}=await import(${JSON.stringify(base)}+'Core/Source/ControlSurface/model.mjs');
+ const {buildEncoders,commandForEncoder}=await import(${JSON.stringify(base)}+'Core/Source/ControlSurface/encoders.mjs');
+ const {createSurfaceSnapshot}=await import(${JSON.stringify(base)}+'Core/Source/ControlSurface/surface-contract.mjs');
+ const {mount}=await import(${JSON.stringify(base)}+'Plugins/Skins/deck.mjs');
+ const s={...createDeckState(),projectId:'preview',document:{kind:'composition',revision:1,name:'AIDAW',composition:{tracks:[{id:'lead',name:'Lead',gain_db:0,pan:0}],length_ticks:3840,bpm:120}},trackId:'lead',playback:{state:'paused'}};
+ let saved;window.aidaw={async saveLayoutPreferences(layouts,encoders){saved=structuredClone({layouts,encoders});}};
+ const initial=buildPads(s);let skin=mount({root:document.getElementById('surfaceRoot'),dispatch:()=>{},initialSnapshot:createSurfaceSnapshot(s)});
+ setupLayoutSettings({getState:()=>s,setLayouts:v=>s.customLayouts=v,setEncoders:v=>s.encoderAssignments=v});
+ const $=id=>document.getElementById(id);const buttons=$('layoutGrid').children.length,knobInputs=$('encoderAssignments').querySelectorAll('select').length;
+ const modeHidden=!document.getElementById('modeLabel')&&!Array.from($('layoutAction').options).some(o=>o.value==='navigate:modes');
+ $('layoutGrid').lastElementChild.click();$('layoutAction').value='save';$('layoutApply').click();
+ const rotation=document.querySelector('[aria-label="エンコーダ 4 回す"]'),press=document.querySelector('[aria-label="エンコーダ 4 押す"]');
+ rotation.value='volume';rotation.dispatchEvent(new Event('change'));press.value='monitorMute';press.dispatchEvent(new Event('change'));
+ $('layoutSave').click();await new Promise(r=>setTimeout(r,0));
+ const restored={...s,customLayouts:saved.layouts,encoderAssignments:saved.encoders};
+ const remapped=commandForEncoder(restored,3,'rotate',2),pressed=commandForEncoder(restored,3,'press');
+ $('assignmentDialog').showModal();await Promise.all([...document.images].filter(i=>i.hasAttribute('src')).map(i=>i.decode()));
+ return {buttons,knobInputs,modeHidden,initialTypes:[0,7,2].map(i=>initial[i].command.type),initialCount:initial.filter(p=>p.command).length,saved,remapped,pressed,restoredButton:buildPads(restored)[10].command.type};
+})()`);
+if(process.env.AIDAW_CAPTURE_ASSIGNMENTS){await new Promise(r=>setTimeout(r,200));const dir=path.join(root,'Core/Build/ui-preview');mkdirSync(dir,{recursive:true});writeFileSync(path.join(dir,'assignments.png'),(await win.webContents.capturePage()).toPNG());}
+console.log('ASSIGNMENT_RESULT '+JSON.stringify(result));win.destroy();app.quit();})().catch(e=>{console.error(e);app.exit(1);});

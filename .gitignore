@@ -1,23 +1,29 @@
-# Dependencies and generated binaries
-/node_modules/
-/build/
-/dist/
-/release/
-/coverage/
+# All machine dependencies, runtime state and generated builds stay inside Core.
+/Core/node_modules/
+/Core/Build/
+/Core/Settings/
+/Core/State/
+/Core/Cache/
+/Core/Logs/
+/Projects/*
+!/Projects/.gitkeep
+/Plugins/Instruments/*
+!/Plugins/Instruments/.gitkeep
+/Plugins/Effects/*
+!/Plugins/Effects/.gitkeep
+/Plugins/Engines/*
+!/Plugins/Engines/.gitkeep
+/Plugins/Controllers/User/
+/Libraries/Sounds/*
+!/Libraries/Sounds/.gitkeep
+/Libraries/SDKs/*
+!/Libraries/SDKs/.gitkeep
 *.tsbuildinfo
 *.o
 *.obj
 *.pdb
 *.dSYM/
-
-# Local projects, masters, jobs, and old source audit archives
-/.aidaw/
-/outputs/
-/tmp/
-/catalog/observed-plugins.json
-# One-off production scripts may contain licensed source/audio paths and plugin IDs.
-/scripts/master-tea-steam-jukebox*.mjs
-*.aidaw/
+*.aidaw
 *.aidaw.zip
 *.wav
 *.aif
@@ -34,8 +40,6 @@
 *.nksn
 *.vst3/
 *.component/
-
-# Per-machine client settings and credentials
 /.codex/config.toml
 /.mcp.json
 /.claude/settings.local.json
@@ -45,11 +49,12 @@
 !.env.example
 *.pem
 *.key
-
-# Transient files
 *.tmp
 *.log
 __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+
+/.agents/mcp_config.json
+/.agents/rules/aidaw.md

@@ -1,0 +1,24 @@
+name: Architecture and documentation
+on: [push, pull_request]
+jobs:
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Core/package-lock.json
+      - run: npm ci --prefix Core
+      - run: node Core/Tools/check-layout.mjs
+      - run: npm --prefix Core run build
+      - run: node --test Core/Tests/directory-contract.test.mjs Core/Tests/architecture.test.mjs Core/Tests/documentation.test.mjs
+      - name: Require design updates for product changes
+        if: github.event_name == 'pull_request'
+        env:
+          DESIGN_BASE: ${{ github.event.pull_request.base.sha }}
+        run: node Core/Tools/design-gate.mjs diff "$DESIGN_BASE"
+      - run: node --test Core/Tests/design-gate.test.mjs

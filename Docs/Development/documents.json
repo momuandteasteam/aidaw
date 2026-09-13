@@ -1,0 +1,269 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "path": "AGENTS.md",
+      "role": "entry",
+      "max_bytes": 1400,
+      "owns": [
+        "agent-task-routing"
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "role": "entry",
+      "max_bytes": 400,
+      "owns": [
+        "claude-entry"
+      ]
+    },
+    {
+      "path": "README.md",
+      "role": "entry",
+      "max_bytes": 12000,
+      "owns": [
+        "human-entry"
+      ]
+    },
+    {
+      "path": "Workflows/EDITING.md",
+      "role": "workflow",
+      "max_bytes": 4000,
+      "owns": [
+        "authored-edit-workflow"
+      ]
+    },
+    {
+      "path": "Workflows/Composition/PRODUCTION.md",
+      "role": "workflow",
+      "max_bytes": 4000,
+      "owns": [
+        "composition-workflow"
+      ]
+    },
+    {
+      "path": "Workflows/Composition/SOUNDS.md",
+      "role": "workflow",
+      "max_bytes": 4000,
+      "owns": [
+        "sound-selection-workflow"
+      ]
+    },
+    {
+      "path": "Workflows/Mastering/MASTERING.md",
+      "role": "workflow",
+      "max_bytes": 4000,
+      "owns": [
+        "mastering-workflow"
+      ]
+    },
+    {
+      "path": "Workflows/Development/IMPLEMENTATION.md",
+      "role": "workflow",
+      "max_bytes": 4000,
+      "owns": [
+        "implementation-workflow"
+      ]
+    },
+    {
+      "path": "Workflows/Development/CONTROLS.md",
+      "role": "workflow",
+      "max_bytes": 4000,
+      "owns": [
+        "control-workflow"
+      ]
+    },
+    {
+      "path": "Workflows/Development/SETUP.md",
+      "role": "workflow",
+      "max_bytes": 4000,
+      "owns": [
+        "setup-workflow"
+      ]
+    },
+    {
+      "path": "Workflows/Templates/PROJECT_RULES.md",
+      "role": "workflow",
+      "max_bytes": 4000,
+      "owns": [
+        "project-agent-template"
+      ]
+    },
+    {
+      "path": "Docs/Architecture/DIRECTORIES.md",
+      "role": "architecture",
+      "max_bytes": 10000,
+      "owns": [
+        "directory-contract"
+      ]
+    },
+    {
+      "path": "Docs/Architecture/SYSTEM.md",
+      "role": "architecture",
+      "max_bytes": 5000,
+      "owns": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "path": "Docs/Architecture/CONTROLS.md",
+      "role": "architecture",
+      "max_bytes": 9000,
+      "owns": [
+        "control-behavior"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/APPLICATION.md",
+      "role": "contract",
+      "max_bytes": 6000,
+      "owns": [
+        "application-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/DOCUMENTS.md",
+      "role": "contract",
+      "max_bytes": 6000,
+      "owns": [
+        "documents-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/HISTORY.md",
+      "role": "contract",
+      "max_bytes": 6000,
+      "owns": [
+        "history-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/ENGINE.md",
+      "role": "contract",
+      "max_bytes": 6000,
+      "owns": [
+        "engine-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/SURFACE.md",
+      "role": "contract",
+      "max_bytes": 6000,
+      "owns": [
+        "surface-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/EXTENSIONS.md",
+      "role": "contract",
+      "max_bytes": 6000,
+      "owns": [
+        "extensions-contract"
+      ]
+    },
+    {
+      "path": "Docs/Development/DOCUMENTATION.md",
+      "role": "development",
+      "max_bytes": 6000,
+      "owns": [
+        "documentation-policy"
+      ]
+    },
+    {
+      "path": "Docs/Development/REQUIREMENTS.md",
+      "role": "development",
+      "max_bytes": 10000,
+      "owns": [
+        "requirements-policy"
+      ]
+    },
+    {
+      "path": "Docs/Development/VERIFICATION.md",
+      "role": "development",
+      "max_bytes": 12000,
+      "owns": [
+        "verification-policy"
+      ]
+    },
+    {
+      "path": "Docs/Development/CONTRIBUTING.md",
+      "role": "development",
+      "max_bytes": 6000,
+      "owns": [
+        "contributing-policy"
+      ]
+    },
+    {
+      "path": "Docs/Development/SECURITY.md",
+      "role": "development",
+      "max_bytes": 8000,
+      "owns": [
+        "security-policy"
+      ]
+    },
+    {
+      "path": "Docs/User/QUICKSTART.md",
+      "role": "user",
+      "max_bytes": 6000,
+      "owns": [
+        "quickstart-guide"
+      ]
+    },
+    {
+      "path": "Docs/User/PLAYBACK.md",
+      "role": "user",
+      "max_bytes": 6000,
+      "owns": [
+        "playback-guide"
+      ]
+    },
+    {
+      "path": "Docs/User/REMOTE_SERVER.md",
+      "role": "user",
+      "max_bytes": 8000,
+      "owns": [
+        "remote_server-guide"
+      ]
+    },
+    {
+      "path": "Docs/User/OPEN_SOURCE.md",
+      "role": "user",
+      "max_bytes": 6000,
+      "owns": [
+        "open_source-guide"
+      ]
+    },
+    {
+      "path": "Workflows/Development/DESIGN_FIRST.md",
+      "role": "workflow",
+      "max_bytes": 5000,
+      "owns": [
+        "design-first-workflow"
+      ]
+    },
+    {
+      "path": "Workflows/Development/CONTRIBUTE.md",
+      "role": "workflow",
+      "max_bytes": 5000,
+      "owns": [
+        "contribution-workflow"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/SEPARATION.md",
+      "role": "contract",
+      "max_bytes": 6500,
+      "owns": [
+        "separation-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/CLIENTS.md",
+      "role": "contract",
+      "max_bytes": 5000,
+      "owns": [
+        "client-setup-contract"
+      ]
+    }
+  ]
+}
