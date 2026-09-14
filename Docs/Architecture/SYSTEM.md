@@ -36,3 +36,9 @@ GUIとAIは同じworkspaceの選択共有を読み書きする。共有選択は
 別実装は同じportを実装し、同じuse case試験を通す。fakeでの成功、native実音での成功、実機確認を区別する。constructor injectionがあるだけで全処理の分離完了と数えない。
 
 入口は [application-contract](../../Core/Source/Contracts/application-contract.ts)、[workspace](../../Core/Source/Contracts/workspace.ts)、[engine-contracts](../../Core/Source/Contracts/engine-contracts.ts)。Service等に残る具象依存と検証根拠は [VERIFICATION](../Development/VERIFICATION.md) に集約する。
+
+## 初期リリース番号
+
+Design status: ready
+
+未リリース試作を整理し、Core/package.jsonの製品番号0.0.1を基準に、core/desktop GUI/MCP/setup/native engine/標準音源・FX/skin/controller/プリセットチェーンを0.0.1へ統一する。nativeとVST3のビルド番号、導入manifest、実行時の自己申告も一致させる。版情報がなかったskin/controllerにも製品versionを持たせる。依存ライブラリ・第三者音源の版、schema/contract/protocol番号、作品の履歴番号は製品番号に置換しない。初期値の一致を機械検査し、将来の独立更新はこの設計を変更してから行う。

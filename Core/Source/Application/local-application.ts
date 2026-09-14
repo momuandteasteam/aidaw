@@ -1,3 +1,10 @@
+import {systemVersions} from './system-versions.js';
+import {importFile} from './file-import.js';
+import {releaseVersion} from '../Contracts/release.js';
+import {downloadMastering,downloadOptions} from './mastering-prerender.js';
+import {EffectChains} from './effect-chains.js';
+import {chainSelection} from '../Contracts/effect-chain.js';
+import {workingDecision,workingSet,workingResolve,getWorkingMix,setWorkingMix,resolveWorkingMix,guardWorkingMix} from '../Adapters/node/workspace/working-mix.js';
 import {projectArtwork} from '../Adapters/node/media/artwork.js';
 import {startSeparation,exportSeparation,separationRequest,separationExportRequest} from './separation.js';
 import { applicationContract,type ApplicationPort } from '../Contracts/application-contract.js';
@@ -23,11 +30,17 @@ import { PluginInventory } from '../Adapters/node/catalog/plugin-inventory.js';
 
 const projectId = { project_id: id };
 const revision = z.number().int().nonnegative();
-const changes = { ...projectId, base_revision: revision, request_id: id };
+const changes = { ...projectId, base_revision: revision, request_id: id, working_copy:workingDecision.optional() };
 const fmt = z.enum(['VST3', 'AudioUnit']);
 export const definitions = {
+  playback_switch_separation:{description:'Switch preloaded stem results on the same transport, preserving shared mute/solo and position.',schema:z.object({...projectId,playback_id:id,engine:z.enum(['spleeter','demucs']),base_revision:revision,request_id:id}).strict()},
+  mastering_comparison_cycle:{description:'Cycle one A/B slot through saved versions. Comparison metadata only; does not adopt GUI mix adjustments.',schema:z.object({...projectId,song_id:id,slot:z.enum(['a','b']),base_revision:revision,request_id:id}).strict()},
+  playback_switch_mastering:{description:'Switch a running or paused mastering session to A/B at its acknowledged frame; preserves pause and monitor volume.',schema:z.object({...projectId,playback_id:id,song_id:id,comparison:z.enum(['a','b']),revision}).strict()},
+  working_mix_get:{description:'Read autosaved GUI gain/pan adjustments and conflicts before editing. These are not project revisions.',schema:z.object(projectId).strict()},
+  working_mix_set:{description:'Autosave GUI gain/pan adjustments without creating a project revision. Requires the latest token and base revision.',schema:workingSet},
+  working_mix_resolve:{description:'After user choice, include GUI adjustments as ONE revision or discard them. Retry with the same request_id; then edit at the returned revision. To keep adjustments pending, pass working_copy:{action:keep,token} to the edit.',schema:workingResolve},
   project_artwork:{description:'Read the latest collected project artwork as a JPEG/PNG data URL, or null when unavailable. Does not render audio.',schema:z.object(projectId).strict()},
-  project_waveform:{description:'Read measured peak bins from existing audio only, without rendering or loading plugins. Composition requires a completed mix at the selected revision. Mastering shows the selected source clip, explicitly labelled source (not processed FX output).',schema:waveformInput},
+  project_waveform:{description:'Read measured peak bins from existing audio only, without rendering or loading plugins. Composition requires a completed mix at the selected revision. Mastering prefers prepared comparison audio (processed_mix); otherwise returns the selected source clip explicitly labelled source.',schema:waveformInput},
   active_context_get:{description:'Read the project, song and audition version currently selected in the AIDAW GUI, shared across processes using this AIDAW_HOME. Call before every editing instruction, then read project_document for the current base_revision. unavailable means do not guess the target. Audition selection is separate from the authored revision.',schema:z.object({}).strict()},
   active_context_set:{description:'Replace the shared GUI project/song/audition selection without changing project history. Omitted optional fields clear previous choices; project_id:null clears the selection. Validates that project, revision, song and version exist. This does not start playback.',schema:activeContextInput},
   project_document:{description:'Read the authoritative mode-specific document, optionally at an immutable historical revision. Composition contains tracks/mixer; mastering contains songs and versions.',schema:z.object({...projectId,revision:z.number().int().nonnegative().optional()}).strict()},
@@ -36,13 +49,15 @@ export const definitions = {
   project_open:{description:'Restore an .aidaw.zip archive (including legacy .aidaw/.zip names) under a new project ID, preserving history. Internal document kind determines mode.',schema:z.object({...projectId,path:z.string().min(1)}).strict()},
   export_start:{description:'Export a fixed composition or mastering song/album to WAV24, MP3 320kbps or FLAC, all 48kHz stereo. Poll job_status for files and failures.',schema:exportRequest},
   mastering_add_song:{description:'Add a source asset as one album song with its own immutable initial effect-chain version.',schema:z.object({...changes,song_id:id,name:z.string().min(1).max(200),asset_id:z.string().min(1),effects:z.array(plugin).default([])}).strict()},
+  mastering_download:{description:'Encode the fixed selected mastering version from prepared PCM with validated format, rate, bit depth and MP3 bitrate. Audio conversion uses the single lane.',schema:z.object({...projectId,revision,song_id:id,comparison:z.enum(['a','b']).optional(),version_id:id.optional(),options:downloadOptions.optional()}).strict()},
+  mastering_prepare:{description:'Pre-render current and A/B versions of all mastering songs. Returns a job; poll job_status or cancel with job_cancel. Does not start playback.',schema:z.object({...projectId}).strict()},
   mastering_create_version:{description:'Create a new immutable song processing version from a prior version. Omitted chain/gain inherit from that parent; A/B assignments remain independent.',schema:z.object({...changes,song_id:id,parent_version_id:id,label:z.string().min(1).max(200),effects:z.array(plugin).optional(),input_gain_db:z.number().min(-96).max(12).optional()}).strict()},
   playback_set_volume:{description:'Set temporary monitor output volume after the master effects. Audio callback acknowledged; never changes saved projects or exports.',schema:z.object({playback_id:id.optional(),gain_db:z.number().min(-96).max(0)}).strict()},
   playback_set_mix:{description:'Apply temporary composition track/return gain, pan, mute and solo overrides, acknowledged by the audio callback. Mastering accepts gain_db only on its selected song track as input gain. Saved revisions remain unchanged.',schema:z.object({playback_id:id.optional(),changes:z.array(z.object({track_id:id.optional(),bus_id:id.optional(),mute:z.boolean().optional(),solo:z.boolean().optional(),gain_db:z.number().min(-96).max(12).optional(),pan:z.number().min(-1).max(1).optional()}).strict().refine(v=>Boolean(v.track_id)!==Boolean(v.bus_id),'Specify one track or return').refine(v=>[v.mute,v.solo,v.gain_db,v.pan].some(x=>x!==undefined),'Specify gain_db, pan, mute or solo')).min(1)}).strict()},
   delivery_inspect:{description:'Read the already published delivery manifest and server file paths without rendering or conversion.',schema:z.object({project_id:id}).strict()},
   queue_status:{description:'Show the single server processing lane and FIFO waiting operations. Connections and job reads stay responsive.',schema:z.object({}).strict()},
   playback_devices:{description:'List audio output devices available on the AIDAW server. Live playback is heard on the server machine.',schema:z.object({}).strict()},
-  playback_start:{description:'Play the current project revision directly through its instruments, track FX, sends, returns and master chain without rendering a file. Playback occupies the single audio-processing lane.',schema:z.object({...projectId,start_frame:frame.default('0'),tail_seconds:z.number().min(0).max(30).optional(),loop:z.boolean().default(false),loop_start_frame:frame.default('0'),loop_end_frame:frame.default('0'),output_device:z.string().min(1).max(500).optional(),monitor_gain_db:z.number().min(-96).max(0).default(0),revision:z.number().int().nonnegative().optional(),song_id:id.optional(),version_id:id.optional(),comparison:z.enum(['a','b']).optional()}).strict()},
+  playback_start:{description:'Play a fixed project revision; mastering A/B may prepare and cache processed audio for smooth comparison. Playback occupies the single audio-processing lane.',schema:z.object({...projectId,separation_mix:z.array(z.object({track_id:id,mute:z.boolean(),solo:z.boolean()}).strict()).optional(),start_paused:z.boolean().optional(),start_frame:frame.default('0'),tail_seconds:z.number().min(0).max(30).optional(),loop:z.boolean().default(false),loop_start_frame:frame.default('0'),loop_end_frame:frame.default('0'),output_device:z.string().min(1).max(500).optional(),monitor_gain_db:z.number().min(-96).max(0).default(0),revision:z.number().int().nonnegative().optional(),song_id:id.optional(),version_id:id.optional(),comparison:z.enum(['a','b']).optional()}).strict()},
   playback_status:{description:'Read live playback position, revision, device, processing latency and xrun count.',schema:z.object({playback_id:id.optional()}).strict()},
   playback_pause:{description:'Pause the active player without unloading its plug-ins.',schema:z.object({playback_id:id.optional()}).strict()},
   playback_resume:{description:'Resume the active player.',schema:z.object({playback_id:id.optional()}).strict()},
@@ -66,10 +81,17 @@ export const definitions = {
   bundle_export:{description:'Collect current project, hashed assets, and frozen audio from a successful current-revision render. Excludes jobs, temp and existing ZIPs.',schema:z.object({...projectId,job_id:id}).strict()},
   bundle_import:{description:'Import a validated portable package under a new project ID; never substitute missing plugins. Includes frozen playback.',schema:z.object({...projectId,path:z.string().min(1)}).strict()},
   project_validate:{description:'Check composition assets and plugin dependencies; return frozen playback when available. Does not claim live plugin compatibility. For mastering, read project_document and select a song/version for playback or export; edits validate their source and chain.',schema:z.object(projectId).strict()},
+  file_import:{description:'Import audio as a 48 kHz source or PNG/JPEG as cover artwork; retain the original audio.',schema:z.object({...projectId,path:z.string().min(1)}).strict()},
   asset_import:{description:'Copy an immutable source/reference/artwork into the project, hash and analyze it. Reference audio is forbidden as render input.',schema:z.object({...projectId,path:z.string().min(1),role:z.enum(['source','reference','artwork'])}).strict()},
   asset_list:{description:'List project assets and provenance.',schema:z.object(projectId).strict()},
+  system_versions:{description:'Read component release versions and installed engine/plugin manifest versions without loading plugins.',schema:z.object({}).strict()},
   system_capabilities: { description: 'Report the native engine platform and supported features. AU is macOS only; VST3 is shared with Windows.', schema: z.object({}).strict() },
+  effect_chain_list:{description:'List reusable effect chain templates without loading plugins.',schema:z.object({}).strict()},
+  effect_chain_inspect:{description:'Inspect a named chain, ordered stages and defaults.',schema:z.object({chain_id:id}).strict()},
+  effect_chain_resolve:{description:'Resolve a pinned chain into installed plugin settings without editing a project.',schema:z.object(chainSelection).strict()},
+  effect_chain_apply:{description:'Replace target effects with a named chain. Composition master or new mastering version; existing versions remain intact.',schema:z.object({...changes,...chainSelection,target:z.discriminatedUnion('kind',[z.object({kind:z.literal('master')}).strict(),z.object({kind:z.literal('mastering'),song_id:id,parent_version_id:id}).strict()])}).strict()},
   catalog_discover: { description: 'List plugin candidate locations without loading them. Scan individual candidates next.', schema: z.object({ format: fmt, search_path: z.string().optional(), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(25) }).strict() },
+  catalog_contribution_prepare: {description:'Prepare selected indexed plugin metadata for contribution locally; never publishes. Review names before sharing.',schema:z.object({plugin_ids:z.array(z.string().min(1)).min(1).max(100)}).strict()},
   catalog_inventory: { description: 'Discover every candidate in the requested formats, scan each in isolation, index exposed parameters/programs, and checkpoint one resumable job. Failed plugins do not stop the remaining inventory.', schema:z.object({formats:z.array(fmt).min(1).max(2).default(['VST3']),max_seconds:z.number().int().min(1).max(3600).default(300)}).strict() },
   catalog_inventory_resume: { description:'Resume pending candidates in an existing plugin inventory job.',schema:z.object({job_id:id,max_seconds:z.number().int().min(1).max(3600).default(300)}).strict() },
   catalog_inventory_status: { description:'Read plugin inventory coverage and per-candidate failures without running plugin code.',schema:z.object({job_id:id}).strict() },
@@ -97,16 +119,24 @@ export const definitions = {
   export_project: { description: 'Legacy composition JSON export with concrete notes and saved plugin states. Use project_save for an editable .aidaw.zip archive with assets and history in either mode, or project_document to read its JSON.', schema: z.object(projectId).strict() },
   project_import: { description: 'Import exported project data under a new project ID. Plugins must be rescanned on the destination machine before rendering.', schema: z.object({ ...projectId, project }).strict() },
 } as const;
+for(const name of ['export_start','render_start','delivery_publish','separation_export','separation_start','project_save','batch_render','batch_render_resume']){const d=(definitions as any)[name];d.schema=d.schema.extend({working_copy:workingDecision.optional()});}
 export type ToolName = keyof typeof definitions;
 async function invokeLocal(service: Service, name: string, input: unknown): Promise<any> {
   if (!Object.hasOwn(definitions, name)) throw new Error(`Unknown tool: ${name}`);
   const a: any = definitions[name as ToolName].schema.parse(input);
-  const immediate=new Set(['project_artwork','separation_start','separation_export','project_waveform','active_context_get','active_context_set','project_document','project_history','project_save','export_start','playback_set_mix','playback_set_volume','playback_devices','delivery_inspect','queue_status','playback_start','playback_status','playback_pause','playback_resume','playback_seek','playback_stop','job_status','job_cancel','project_list','project_inspect','mixer_inspect','asset_list','catalog_search','catalog_inventory_status','catalog_portable_export','catalog_reference_search','content_search','sound_search','effect_search','knowledge_search','system_capabilities','render_start','batch_render','batch_render_resume']);
+  const immediate=new Set(['playback_switch_separation','system_versions','mastering_download','mastering_prepare','mastering_comparison_cycle','playback_switch_mastering','working_mix_get','working_mix_set','project_artwork','separation_start','separation_export','project_waveform','active_context_get','active_context_set','project_document','project_history','project_save','export_start','playback_set_mix','playback_set_volume','playback_devices','delivery_inspect','queue_status','playback_start','playback_status','playback_pause','playback_resume','playback_seek','playback_stop','job_status','job_cancel','project_list','project_inspect','mixer_inspect','asset_list','catalog_search','effect_chain_list','effect_chain_inspect','catalog_inventory_status','catalog_contribution_prepare','catalog_portable_export','catalog_reference_search','content_search','sound_search','effect_search','knowledge_search','system_capabilities','render_start','batch_render','batch_render_resume']);
   if(!immediate.has(name))return service.processing.run(name,()=>dispatch(service,name,a));
   return dispatch(service,name,a);
 }
 async function dispatch(service:Service,name:string,a:any):Promise<any>{
+  if(['export_start','render_start','delivery_publish','separation_export','separation_start','project_save','batch_render','batch_render_resume'].includes(name))await guardWorkingMix(service,a.project_id,a.working_copy);
   switch(name as ToolName){
+    case 'mastering_comparison_cycle':return service.cycleComparison(a);
+    case 'playback_switch_separation':return service.switchSeparationPlayback(a);
+    case 'playback_switch_mastering':return service.switchMasteringPlayback(a);
+    case 'working_mix_get':return getWorkingMix(service,a.project_id);
+    case 'working_mix_set':return setWorkingMix(service,a);
+    case 'working_mix_resolve':return resolveWorkingMix(service,a);
     case 'project_artwork':return projectArtwork(service,a.project_id);
     case 'project_waveform':return projectWaveform(service,a);
     case 'active_context_get':return service.activeContext();
@@ -129,6 +159,8 @@ async function dispatch(service:Service,name:string,a:any):Promise<any>{
     case 'project_open': return importBundle(service,a.path,a.project_id);
     case 'export_start': return startExport(service,a);
     case 'mastering_add_song': return service.addMasteringSong(a);
+    case 'mastering_download':return downloadMastering(service,a);
+    case 'mastering_prepare':return service.prepareMastering(a.project_id);
     case 'mastering_create_version': return service.createMasteringVersion(a);
     case 'playback_set_volume': return service.setPlaybackVolume(a.gain_db,a.playback_id);
     case 'playback_set_mix': return service.setPlaybackMix(a.changes,a.playback_id);
@@ -149,6 +181,7 @@ async function dispatch(service:Service,name:string,a:any):Promise<any>{
     case 'bundle_export': return exportBundle(service,a.project_id,a.job_id);
     case 'bundle_import': return importBundle(service,a.path,a.project_id);
     case 'project_validate': return service.validate(a.project_id);
+    case 'file_import':return importFile(service,a.project_id,a.path);
     case 'asset_import': return ingest(service,a.project_id,a.path,a.role);
     case 'asset_list': return manifest(service.dir(a.project_id));
     case 'plugin_verify': return new Knowledge(service).verify(a.plugin);
@@ -165,8 +198,14 @@ async function dispatch(service:Service,name:string,a:any):Promise<any>{
     case 'sound_probe': return new Knowledge(service).probe(a.plugin,a.pitches,a.velocity,a.bpm);
     case 'sound_assess': return new Knowledge(service).assess(a);
     case 'knowledge_search': return new Knowledge(service).search(a.query,a.kind,a.limit);
-    case 'system_capabilities': {const engine=await service.engine.describe();return { engine,formats:engine.plugin_formats,realtime_playback:engine.features.includes('playback.v1'),sample_rate:engine.sample_rates.length===1?engine.sample_rates[0]:undefined, project_schema: 3, home_schema:1, home_paths:{projects:service.paths.projects,plugins:service.paths.plugins,engine:service.paths.engine,controllers:service.paths.controllers,settings:service.paths.settings}, ppq: 960, instrument_selection_policy:'plugin_first; inspect content libraries and audition before choosing. Basic sounds only with explicit allow_basic.', builtin_sounds: [],
+    case 'system_versions':return systemVersions(service);
+    case 'system_capabilities': {const engine=await service.engine.describe();return { version:releaseVersion,engine,formats:engine.plugin_formats,realtime_playback:engine.features.includes('playback.v1'),sample_rate:engine.sample_rates.length===1?engine.sample_rates[0]:undefined, project_schema: 3, home_schema:1, home_paths:{projects:service.paths.projects,plugins:service.paths.plugins,engine:service.paths.engine,controllers:service.paths.controllers,settings:service.paths.settings}, ppq: 960, instrument_selection_policy:'plugin_first; inspect content libraries and audition before choosing. Basic sounds only with explicit allow_basic.', builtin_sounds: [],
       limitations: ['fixed tempo and 48kHz stereo for offline rendering and live playback', 'live playback uses a pinned revision; stop and restart after project edits', 'static latency only; changes during processing require restart', 'instrument/insert/master automation at 64-sample control intervals; no CC/sidechains yet', 'LUFS/true peak measurement requires FFmpeg; no automatic listening judgment', 'one-level pre/post-fader sends; bus-to-bus routing unsupported', 'bundle import capped at 512 MiB compressed / 1 GiB expanded', 'audio input fixed at 48 kHz; explicit SRC required for other rates'] };}
+    case 'catalog_contribution_prepare': return new PluginInventory(service).prepareContribution(a.plugin_ids);
+    case 'effect_chain_list':return new EffectChains(service).list();
+    case 'effect_chain_inspect':return new EffectChains(service).inspect(a.chain_id);
+    case 'effect_chain_resolve':return new EffectChains(service).resolve(a);
+    case 'effect_chain_apply':return new EffectChains(service).apply(a);
     case 'catalog_discover': { const result = await service.discover(a.format, a.search_path); return { candidates: result.candidates.slice(a.offset, a.offset + a.limit), total: result.candidates.length }; }
     case 'catalog_inventory': return new PluginInventory(service).start(a.formats,a.max_seconds);
     case 'catalog_inventory_resume': return new PluginInventory(service).start([],a.max_seconds,a.job_id);

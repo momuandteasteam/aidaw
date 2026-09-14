@@ -1,0 +1,3 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {execFile} from 'node:child_process';import {promisify} from 'node:util';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';
+const require=createRequire(import.meta.url);
+test('download modal selects format and destination and freezes the pressed A/B revision',async()=>{const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;const {stdout}=await promisify(execFile)(require('electron'),[fileURLToPath(new URL('./mastering-download-browser.cjs',import.meta.url))],{env,timeout:20000});const data=JSON.parse(stdout.split('\n').find(l=>l.startsWith('DOWNLOAD_RESULT ')).slice(16));for(const [name,value]of Object.entries(data))assert.equal(value,true,name);});

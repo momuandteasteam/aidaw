@@ -1,3 +1,4 @@
+import {releaseVersion} from '../../Build/JS/Contracts/release.js';
 import {validateEncoderAssignments} from '../ControlSurface/encoders.mjs';
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { access, mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
@@ -13,14 +14,19 @@ import { call } from '../../Build/JS/Application/api.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = defaultWorkspaceRoot();
-app.setName('AIDAW Player');
+app.setName('AIDAW DECK');
 app.setPath('userData', join(app.getPath('appData'), 'AIDAW Player'));
 let service, application;
 let mainWindow;
 let activePlaybackId;
 let settings = {};
-const allowedApi = new Set(['project_artwork','separation_start','separation_export','project_waveform','playback_set_volume','active_context_get','active_context_set','project_list','project_create','project_document','project_inspect','project_apply','project_history','project_revision','project_restore','project_save','project_open','asset_import','asset_list','playback_devices','playback_start','playback_status','playback_pause','playback_resume','playback_seek','playback_stop','playback_set_mix','export_start','export_midi','job_status','job_cancel','queue_status','mixer_inspect','catalog_search','plugin_inspect','system_capabilities']);
+let installation;
+const allowedApi = new Set(['playback_switch_separation','mastering_download','mastering_prepare','mastering_comparison_cycle','playback_switch_mastering','working_mix_get','working_mix_set','working_mix_resolve','project_artwork','separation_start','separation_export','project_waveform','playback_set_volume','active_context_get','active_context_set','project_list','project_create','project_document','project_inspect','project_apply','project_history','project_revision','project_restore','project_save','project_open','asset_import','asset_list','playback_devices','playback_start','playback_status','playback_pause','playback_resume','playback_seek','playback_stop','playback_set_mix','export_start','export_midi','job_status','job_cancel','queue_status','mixer_inspect','catalog_search','plugin_inspect','system_capabilities']);
 const knownOutputs = new Set();
+const downloadDestinations = new Set();
+allowedApi.add('system_versions');
+allowedApi.add('file_import');
+allowedApi.add('render_start');
 allowedApi.add('mastering_add_song');
 allowedApi.add('mastering_create_version');
 
@@ -29,6 +35,10 @@ const exists = path => access(path).then(() => true, () => false);
 const settingsPath = () => join(app.getPath('userData'), 'player-settings.json');
 
 async function loadSettings() {
+  if(app.isPackaged){
+    installation=JSON.parse(await readFile(join(app.getAppPath(),'desktop-install.json'),'utf8'));
+    for(const [key,value]of Object.entries(installation.tools??{}))if(!process.env[key])process.env[key]=value;
+  }
   try { settings = JSON.parse(await readFile(settingsPath(), 'utf8')); }
   catch { settings = {}; }
 }
@@ -42,6 +52,10 @@ async function saveSettings() {
 async function defaultDataDir() {
   if(process.env.AIDAW_HOME)return resolve(process.env.AIDAW_HOME);
   if(typeof settings.dataDir==='string'&&await exists(homePaths(settings.dataDir).workspaceManifest))return resolve(settings.dataDir);
+  if(app.isPackaged){
+    if(typeof installation?.dataDir!=='string'||!await exists(homePaths(installation.dataDir).workspaceManifest))throw Error('AIDAW保存先が見つかりません。GUI更新を同じ保存先で再実行してください。');
+    return resolve(installation.dataDir);
+  }
   return repoRoot;
 }
 
@@ -97,6 +111,7 @@ function registerIpc() {
     collect(value);
     return value;
   });
+  handle('player:choose-audio-files',async()=>{const result=await dialog.showOpenDialog(mainWindow,{title:'ファイルをインポート',properties:['openFile','multiSelections'],filters:[{name:'音声・画像',extensions:['wav','wave','aif','aiff','flac','mp3','m4a','aac','ogg','opus','png','jpg','jpeg']}]});return result.canceled?[]:result.filePaths;});
   handle('player:choose-file', async ({ kind }) => {
     const result = await dialog.showOpenDialog(mainWindow, { title:kind==='project'?'プロジェクトをインポート':'音声を読み込む', properties: ['openFile'], filters: kind === 'project' ? [{ name: 'AIDAW project (.aidaw.zip)', extensions: ['aidaw','zip'] }] : [{ name: '48 kHz WAV', extensions: ['wav'] }] });
     return result.canceled ? null : result.filePaths[0];
@@ -104,6 +119,17 @@ function registerIpc() {
   handle('player:reveal', async ({ path }) => {
     if (!knownOutputs.has(path)) throw new Error('このセッションの成果物だけを開けます');
     shell.showItemInFolder(path); return { opened: true };
+  });
+  handle('player:choose-download-path',async({format,filename})=>{
+    if(!['wav','flac','mp3'].includes(format))throw Error('Invalid download format');
+    const stem=(typeof filename==='string'?filename:'master').replace(/\.(wav|flac|mp3)$/i,'').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/[. ]+$/,'').slice(0,100)||'master';
+    const safeStem=/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(stem)?'_'+stem:stem;
+    const result=await dialog.showSaveDialog(mainWindow,{title:'書き出しの保存先',defaultPath:`${safeStem}.${format}`,filters:[{name:format.toUpperCase(),extensions:[format]}]});
+    if(result.canceled||!result.filePath)return null;downloadDestinations.add(result.filePath);return {path:result.filePath};
+  });
+  handle('player:save-download',async({path,destination})=>{
+    if(!knownOutputs.has(path)||!downloadDestinations.has(destination))throw Error('Choose an authorized output and destination');
+    if(resolve(path)!==resolve(destination))await copyFile(path,destination);downloadDestinations.delete(destination);knownOutputs.add(destination);return {output:destination};
   });
   handle('player:save-output', async ({ path }) => {
     if (!knownOutputs.has(path)) throw new Error('このセッションの成果物だけを保存できます');
@@ -172,16 +198,19 @@ function registerIpc() {
     if(!['deck','transport'].includes(skin))throw new Error('Unknown skin');
     settings.skin=skin;await saveSettings();return {skin};
   });
-  handle('player:preferences', async () => ({ project_id: settings.projectId, output_device: settings.outputDevice, controller: settings.controller??{}, customLayouts: settings.customLayouts??{}, skin: settings.skin??'deck' }));
+  handle('player:preferences', async () => ({ project_id: settings.projectId, output_device: settings.outputDevice, controller: settings.controller??{}, customLayouts: settings.customLayouts??{}, encoderAssignments:settings.encoderAssignments??{}, skin: settings.skin??'deck' }));
 }
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 440,
-    height: 540,
-    minWidth: 434,
-    minHeight: 540,
-    title: 'AIDAW Player',
+    width: 416,
+    height: 494,
+    useContentSize: true,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    title: 'AIDAW DECK',
+    icon: join(here, 'assets', 'aidaw-deck.png'),
     backgroundColor: '#101112',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: { preload: join(here, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -193,13 +222,15 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus(); } });
   app.whenReady().then(async () => {
+    if (process.platform === 'darwin') app.dock.setIcon(join(here, 'assets', 'aidaw-deck.png'));
     await loadSettings();
     await resetService(await defaultDataDir());
     registerIpc();
     await createWindow();
-  }).catch(error => { dialog.showErrorBox('AIDAW Playerを起動できません', message(error)); app.quit(); });
+  }).catch(error => { dialog.showErrorBox('AIDAW DECKを起動できません', message(error)); app.quit(); });
   app.on('window-all-closed', () => app.quit());
   app.on('before-quit', event => {
+    if (mainWindow && !mainWindow.isDestroyed()) { event.preventDefault(); mainWindow.close(); return; }
     if (!service) return;
     event.preventDefault();
     const closing = service;
@@ -207,3 +238,5 @@ else {
     void closing.close().finally(() => { app.removeAllListeners('before-quit'); app.quit(); });
   });
 }
+
+app.setAboutPanelOptions({applicationName:"AIDAW DECK",applicationVersion:releaseVersion});

@@ -441,7 +441,7 @@ var execute(const var& r) {
     juce::AudioPluginFormatManager m; juce::addDefaultFormatsToManager(m); auto command = r["command"].toString();
     if (command == "capabilities") {
         juce::Array<var> formats; for (auto* f : m.getFormats()) formats.add(f->getName());
-        return obj({{"version", "0.1.0"}, {"formats", formats}, {"sample_rate", 48000}, {"platform", juce::SystemStats::getOperatingSystemName()}, {"offline", true}, {"realtime_playback", true}, {"latency_compensation", "static track, send return and master chains"}});
+        return obj({{"version", AIDAW_RELEASE_VERSION}, {"formats", formats}, {"sample_rate", 48000}, {"platform", juce::SystemStats::getOperatingSystemName()}, {"offline", true}, {"realtime_playback", true}, {"playback_prepared_comparison", true}, {"playback_replace_comparison", true}, {"playback_initial_pause", true}, {"playback_position_switch", true}, {"latency_compensation", "static track, send return and master chains"}});
     }
     if (command == "discover") {
         auto* f = getFormat(m, r["format"].toString()); auto paths = f->getDefaultLocationsToSearch();
@@ -457,6 +457,7 @@ var execute(const var& r) {
     if (command == "modo_bass_preset") return modoPreset(m, r);
     if (command == "kontakt_preset") return kontaktPreset(m, r);
     if (command == "playback_devices") return playbackDevices();
+    if (command == "prepared_comparison_probe") return preparedComparisonProbe(r);
     if (command == "playback_graph_probe") return playbackGraphProbe(m, r);
     if (command == "playback") return playback(m, r);
     if (command == "render") return render(m, r);

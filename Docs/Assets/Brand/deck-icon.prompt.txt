@@ -1,0 +1,9 @@
+AIDAW DECK app icon
+Method: built-in image generation, followed by background removal.
+Reference: approved AIDAW mark and stacked logo.
+Design: centered cyan-blue-violet mark on a navy rounded-square tile; no lettering.
+
+Final background-removal prompt:
+Remove the background outside the navy rounded square app icon. Transparent background. Keep the entire navy tile and colorful emblem intact. Clean smooth rounded-square edge. PNG with transparency. No checkerboard.
+
+Output: aidaw-deck-icon.png, 1254 x 1254, PNG with alpha channel.

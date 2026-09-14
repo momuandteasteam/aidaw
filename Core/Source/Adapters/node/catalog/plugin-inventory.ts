@@ -1,6 +1,7 @@
+import {contributionFromPortable,saveObservation,referenceObservations} from './catalog-contribution.js';
 import {defaultWorkspaceRoot} from '../workspace/home.js';
 import { createHash } from 'node:crypto';
-import { basename, join } from 'node:path';
+import { basename, join, dirname } from 'node:path';
 import { cp, readFile } from 'node:fs/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { systemLayout, newJob } from '../workspace/layout.js';
@@ -68,10 +69,10 @@ export class PluginInventory {
     if(jobId&&!status)status=await readJson(join(this.dir,'jobs',jobId,'status.json'));
     const catalog=await this.service.catalog(),records:any[]=[];const dbPath=join(this.dir,'state','catalog.sqlite');
     try{const db=new DatabaseSync(dbPath,{readOnly:true});try{for(const r of db.prepare("SELECT data FROM records WHERE kind='parameters' ORDER BY created DESC").all() as any[])records.push(JSON.parse(r.data));}finally{db.close();}}catch{}
-    const latest=new Map<string,any>();for(const r of records){const key=`${r.plugin_id}\0${r.version}`;if(!latest.has(key))latest.set(key,r);}
+    const latest=new Map<string,any>();for(const r of records){if(r.platform!==process.platform||r.arch!==process.arch)continue;const key=`${r.plugin_id}\0${r.version}`;if(!latest.has(key))latest.set(key,r);}
     const locations=status?.tasks.map(t=>t.location)??catalog.plugins.map((p:any)=>String(p.location??''));
     const observed=status?new Set(status.tasks.flatMap(t=>t.plugins??[])):null;
-    const included=(p:any)=>!observed||observed.has(p.plugin_id)||(p.vendor==='AIDAW'&&['AIDAW GM','AIDAW EQ','AIDAW Limiter','AIDAW Reverb'].includes(p.name));
+    const included=(p:any)=>!observed||observed.has(p.plugin_id)||(p.vendor==='AIDAW'&&['AIDAW GM','AIDAW EQ','AIDAW Limiter','AIDAW Reverb','AIDAW Enhancer','AIDAW Imager','AIDAW BassMono','AIDAW Gain'].includes(p.name));
     const plugins=catalog.plugins.filter(included).map((p:any)=>{const snapshot=latest.get(`${p.plugin_id}\0${p.version}`);return {plugin_id:p.plugin_id,name:p.name,vendor:p.vendor,version:p.version,format:p.format,instrument:!!p.instrument,inputs:Number(p.inputs??0),outputs:Number(p.outputs??0),parameter_status:snapshot?'host_readback':'not_indexed',parameters:(snapshot?.parameters??[]).map(paramShape),programs:(snapshot?.programs??[]).map((x:any)=>({index:Number(x.index),name:String(x.name??'')})),buses:(snapshot?.buses??[]).map((x:any)=>({direction:x.direction,index:Number(x.index),name:String(x.name??''),channels:Number(x.channels),enabled:!!x.enabled}))};}).sort((a:any,b:any)=>`${a.vendor}\0${a.name}\0${a.format}`.localeCompare(`${b.vendor}\0${b.name}\0${b.format}`));
     const failures=(status?.tasks??[]).filter(t=>t.state==='failed').map(t=>({format:t.format,candidate:basename(t.location),error:portableError(t.error??t.errors?.join('; ')??'unknown',locations)}));
     const summary=status?this.summarize(status):{plugins_found:plugins.length};
@@ -79,10 +80,17 @@ export class PluginInventory {
     const path=join(this.dir,'outputs','portable-plugin-catalog.json');await atomicJson(path,output);return path;
   }
   async copyPortable(jobId:string,destination:string){const source=await this.exportPortable(jobId);await cp(source,destination);return {output:destination,sha256:hash(await readFile(destination,'utf8'))};}
+  async prepareContribution(ids:string[]){
+    const source=await this.exportPortable();
+    const observations=contributionFromPortable(JSON.parse(await readFile(source,'utf8')),ids);
+    const files=[];for(const observation of observations)files.push(await saveObservation(join(this.dir,'outputs','contributions'),observation));
+    return {files,published:false,instruction:'Review product names and versions, then follow Workflows/Development/CONTRIBUTE.md only when publication is requested.'};
+  }
   async searchReference(query:string,limit:number){
     const source=process.env.AIDAW_REFERENCE_CATALOG??join(defaultWorkspaceRoot(),'Libraries','Catalog','reference-plugins.json');let catalog:any;
-    try{catalog=JSON.parse(await readFile(source,'utf8'));}catch(e:any){if(e.code==='ENOENT')return {available:false,plugins:[],instruction:'Run npm run inventory:plugins to create the portable reference catalog.'};throw e;}
-    const q=query.toLocaleLowerCase();const matches=(catalog.plugins??[]).filter((p:any)=>!q||`${p.name} ${p.vendor} ${p.version} ${p.format} ${p.parameters?.map((x:any)=>x.name).join(' ')} ${p.programs?.map((x:any)=>x.name).join(' ')}`.toLocaleLowerCase().includes(q));
-    return {available:true,scope:catalog.scope,platform:catalog.platform,arch:catalog.arch,total:matches.length,plugins:matches.slice(0,limit).map((p:any)=>({plugin_id:p.plugin_id,name:p.name,vendor:p.vendor,version:p.version,format:p.format,instrument:p.instrument,parameter_count:p.parameters?.length??0,program_count:p.programs?.length??0,matched_parameters:(p.parameters??[]).filter((x:any)=>!q||`${x.name} ${x.unit}`.toLocaleLowerCase().includes(q)).slice(0,20),matched_programs:(p.programs??[]).filter((x:any)=>!q||x.name.toLocaleLowerCase().includes(q)).slice(0,20),availability:'reference_only; scan the exact format and version on this server before use'}))};
+    try{catalog=JSON.parse(await readFile(source,'utf8'));}catch(e:any){if(e.code==='ENOENT')catalog={plugins:[]};else throw e;}
+    const contributions=await referenceObservations(join(dirname(source),'Contributions'));
+    const q=query.toLocaleLowerCase();const matches=[...(catalog.plugins??[]),...contributions].filter((p:any)=>!q||`${p.name} ${p.vendor} ${p.version} ${p.format} ${p.parameters?.map((x:any)=>x.name).join(' ')} ${p.programs?.map((x:any)=>x.name).join(' ')}`.toLocaleLowerCase().includes(q));
+    return {available:true,scope:catalog.scope,platform:catalog.platform,arch:catalog.arch,total:matches.length,plugins:matches.slice(0,limit).map((p:any)=>({plugin_id:p.plugin_id,name:p.name,vendor:p.vendor,version:p.version,format:p.format,platform:p.platform??catalog.platform,arch:p.arch??catalog.arch,observation_id:p.observation_id,instrument:p.instrument,parameter_count:p.parameters?.length??0,program_count:p.programs?.length??0,matched_parameters:(p.parameters??[]).filter((x:any)=>!q||`${x.name} ${x.unit}`.toLocaleLowerCase().includes(q)).slice(0,20),matched_programs:(p.programs??[]).filter((x:any)=>!q||x.name.toLocaleLowerCase().includes(q)).slice(0,20),availability:'reference_only; scan the exact format and version on this server before use'}))};
   }
 }

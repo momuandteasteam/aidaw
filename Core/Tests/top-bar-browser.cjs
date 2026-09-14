@@ -1,7 +1,7 @@
 const {app,BrowserWindow}=require('electron');
 const {readFileSync,writeFileSync,mkdirSync}=require('node:fs');
 const {pathToFileURL}=require('node:url');const path=require('node:path');
-(async()=>{await app.whenReady();const win=new BrowserWindow({show:false,width:440,height:680,webPreferences:{contextIsolation:true,nodeIntegration:false}});
+(async()=>{await app.whenReady();const win=new BrowserWindow({show:false,width:416,height:494,useContentSize:true,webPreferences:{contextIsolation:true,nodeIntegration:false}});
 await win.loadFile(path.join(__dirname,'surface-fixture.html'));
 const root=path.resolve(__dirname,'../..'),base=pathToFileURL(root+'/').href;
 const html=readFileSync(path.join(root,'Core/Source/Desktop/renderer/index.html'),'utf8');
@@ -18,19 +18,20 @@ const result=await win.webContents.executeJavaScript(`(async()=>{
  document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true}));const arrowTarget=document.activeElement.dataset.command;
  document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));const escaped=$('fileMenu').hidden&&document.activeElement===$('fileMenuButton');
  $('assignmentButton').click();const assignment=$('assignmentDialog').open&&!$('settingsDialog').open&&$('assignmentDialog').contains($('layoutGrid'));$('assignmentClose').click();
- $('settingsButton').click();const settings=$('settingsDialog').open&&!$('settingsDialog').contains($('layoutGrid'))&&!$('inspectorDisclosure').open;$('settingsClose').click();
+ $('settingsButton').click();const settings=$('settingsDialog').open&&!$('settingsDialog').contains($('layoutGrid'))&&!$('inspectorDisclosure')&&$('settingsDialog').querySelectorAll('select').length===1;$('settingsClose').click();
  const menuClick=async type=>{$('fileMenuButton').click();$('fileMenu').querySelector('[data-command="'+type+'"]').click();await tick();};
  await menuClick('projectList');const listOpened=$('projectListDialog').open;
  $('projectListRefresh').click();await tick();const refreshed=calls.some(c=>c.name==='project_list');
  $('projectListItems').querySelector('button').click();await tick();const outputRestored=[...$('fileMenu').querySelectorAll('[data-needs-project]')].every(b=>!b.disabled&&!b.hidden);const selected=!$('projectListDialog').open&&calls.some(c=>c.name==='project_document')&&document.querySelector('#surfaceRoot h2').textContent===doc.name;
- await menuClick('save');await menuClick('openWorkspace');await menuClick('openFile');
+ await menuClick('save');await menuClick('openFile');
  await menuClick('create');const createDialog=$('editor').open&&$('editorTitle').textContent==='新規プロジェクト';$('editorCancel').click();await tick();
- await menuClick('audioExport');const audioExport=[...document.querySelectorAll('.key')].some(b=>b.title.includes('WAV'))||document.querySelector('#inspector').textContent.includes('書き出し');
- const stage=document.querySelector('.deck-stage').getBoundingClientRect(),dock=document.querySelector('.encoder-panel').getBoundingClientRect();const captions=[...document.querySelectorAll('.encoder-caption')];captions.forEach((c,i)=>c.textContent=['再生音量','再生位置','トラック / RETURN','長いパラメーターの名前'][i]);const parameterNamesFit=captions.every(c=>{const r=c.getBoundingClientRect();return r.bottom<=stage.bottom&&r.left>=stage.left&&r.right<=stage.right&&getComputedStyle(c).whiteSpace==='nowrap';});const squareCover=Math.abs(stage.width-stage.height)<1&&dock.top>=stage.top&&dock.bottom<=stage.bottom&&[...document.querySelectorAll('.key')].every(k=>k.offsetWidth===72&&k.offsetHeight===72);
+ await menuClick('audioExport');const audioExport=[...document.querySelectorAll('.key')].some(b=>b.title.includes('WAV'));
+ const stage=document.querySelector('.deck-stage').getBoundingClientRect(),dock=document.querySelector('.encoder-panel').getBoundingClientRect();const captions=[...document.querySelectorAll('.encoder-caption')];captions.forEach((c,i)=>c.textContent=['再生音量','再生位置','トラック / RETURN','長いパラメーターの名前'][i]);const parameterNamesFit=captions.every(c=>{const r=c.getBoundingClientRect();return r.bottom<=stage.bottom&&r.left>=stage.left&&r.right<=stage.right&&getComputedStyle(c).whiteSpace==='nowrap';});const flushCover=stage.left===0&&stage.right===innerWidth&&stage.bottom===innerHeight;const squareCover=Math.abs(stage.width-stage.height)<1&&dock.top>=stage.top&&dock.bottom<=stage.bottom&&[...document.querySelectorAll('.key')].every(k=>k.offsetWidth===72&&k.offsetHeight===72);
  const error=$('message').textContent;
  $('fileMenuButton').click();const buttons=[...document.querySelectorAll('.project-toolbar>.menu-button:not([hidden])')].map(b=>({width:b.offsetWidth,height:b.offsetHeight,font:getComputedStyle(b).fontSize}));
  const menuBounds=$('fileMenu').getBoundingClientRect(),withinWindow=menuBounds.left>=0&&menuBounds.right<=innerWidth;
- const result={parameterNamesFit,squareCover,toolbarNames,labels,unavailable,arrowTarget,escaped,assignment,settings,listOpened,refreshed,selected,outputRestored,createDialog,audioExport,error,calls,buttons,withinWindow};
+ const {openSeparationProgress}=await import(${JSON.stringify(base)}+'Core/Source/Desktop/renderer/separation-progress.mjs');let cancelled=false;const progress=openSeparationProgress('demucs',async()=>{cancelled=true;});const processing=document.getElementById('separationProgressDialog');progress.update({phase:'分離中'});const indeterminate=!processing.querySelector('progress').hasAttribute('value');progress.update({phase:'検証',completed:2,total:4});const determinate=processing.querySelector('progress').value===2&&processing.querySelector('progress').max===4;processing.querySelector('button').click();await tick();const progressDialog=processing.open&&indeterminate&&determinate&&cancelled;progress.close();
+ const result={progressDialog,flushCover,parameterNamesFit,squareCover,toolbarNames,labels,unavailable,arrowTarget,escaped,assignment,settings,listOpened,refreshed,selected,outputRestored,createDialog,audioExport,error,calls,buttons,withinWindow};
  await Promise.all([...document.images].filter(i=>i.hasAttribute('src')).map(i=>i.decode()));return result;
 })()`);
 if(process.env.AIDAW_CAPTURE_TOP_BAR){await new Promise(r=>setTimeout(r,200));const dir=path.join(root,'Core/Build/ui-preview');mkdirSync(dir,{recursive:true});writeFileSync(path.join(dir,'top-bar-implemented.png'),(await win.webContents.capturePage()).toPNG());}

@@ -4,6 +4,10 @@
 正本範囲: 表示moduleとhostの境界。キー寸法や操作配置の正本は [CONTROLS](../Architecture/CONTROLS.md)。
 関連要件: R-007, R-008, R-009, R-011。
 
+GUIと作品の継続同期を変更するときは [PROJECT_SYNC](PROJECT_SYNC.md) を読む（設計済み・未実装）。
+
+GUI調整の自動保存・取り込みは [WORKING_MIX](WORKING_MIX.md)。
+
 ## 所有する状態
 
 Control runtimeが作品選択、再生状態、polling、dispatch、購読を所有する。skinは渡された表示用snapshotを描画し、操作intentをdispatchする。skinが作品正本、plugin state、native handleを所有・変更しない。
@@ -41,3 +45,7 @@ hostは前skinをdisposeしてから次をmountする。切替中もruntimeの�
 [control-runtime](../../Core/Source/Desktop/runtime/control-runtime.mjs) がstateとcommandを処理し、[skin registry/host](../../Plugins/Skins/index.mjs) がmount/update/disposeを接続する。OS境界は [desktop main](../../Core/Source/Desktop/main.mjs) と [preload](../../Core/Source/Desktop/preload.cjs)。
 
 [surface-runtime](../../Core/Tests/surface-runtime.test.mjs)、[surface-browser](../../Core/Tests/surface-browser.test.mjs)、[architecture](../../Core/Tests/architecture.test.mjs) で同等操作、切替時のsession維持、破棄後イベント、依存方向を検証する。実施根拠は [VERIFICATION](../Development/VERIFICATION.md) の関連行。機器moduleは [EXTENSIONS](EXTENSIONS.md)。
+
+マスタリングA/Bは[MASTERING_AB](MASTERING_AB.md)。
+
+ファイルメニューのaudio.exportは通常デッキの書き出しと同じ操作へ解決する。マスタリングはdownloadMaster、ステム分離はseparationの保存dialogを開き、mode・選択を維持する。曲制作はexport画面。未選択時は無効。

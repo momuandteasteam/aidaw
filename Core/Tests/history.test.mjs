@@ -53,3 +53,18 @@ test('legacy retained snapshots migrate before a new delta without silently disc
  const head=await ensureHistory(dir,current);await atomicJson(join(dir,'project.json'),{project:current,history:head,receipts:{}});
  assert.equal((await listHistory(dir)).total,3);assert.deepEqual(await readRevision(dir,0),{revision:0,value:0});
 });
+
+test('schema defaults do not change the stored history parent',async t=>{
+ const {service,api}=await fixture(t);
+ await api('project_create',{project_id:'old-stems',name:'Old stems',kind:'separation',bpm:120,length_ticks:15360,meter:[4,4]});
+ const dir=service.dir('old-stems'),path=join(dir,'project.json'),envelope=JSON.parse(await readFile(path,'utf8'));
+ delete envelope.project.separation.variants;
+ envelope.history=await initializeHistory(dir,envelope.project);await atomicJson(path,envelope);
+ const old=structuredClone(envelope.project);
+ assert.deepEqual((await service.readDocument('old-stems')).separation.variants,{});
+ await api('project_apply',{project_id:'old-stems',base_revision:0,request_id:'defaults',operations:[{op:'set_bpm',bpm:99}]});
+ assert.deepEqual(await readRevision(dir,0),old);
+ assert.deepEqual((await readRevision(dir,1)).separation.variants,{});
+ const changed=JSON.parse(await readFile(path,'utf8'));changed.project.name='tampered';await atomicJson(path,changed);
+ await assert.rejects(api('project_apply',{project_id:'old-stems',base_revision:1,request_id:'tamper',operations:[{op:'set_bpm',bpm:100}]}),/History parent state mismatch/);
+});

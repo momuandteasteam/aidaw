@@ -1,10 +1,11 @@
+import {releaseVersion} from '../../Contracts/release.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { call } from '../../Application/api.js';
 import { negotiateApplication,type ApplicationPort } from '../../Contracts/application-contract.js';
 
 export function createMcpServer(application:ApplicationPort) {
 negotiateApplication(application);
-const server = new McpServer({ name: 'aidaw', version: '0.1.0' }, {
+const server = new McpServer({ name: 'aidaw', version: releaseVersion }, {
   instructions: application.instructions,
 });
 for (const [name, definition] of Object.entries(application.definitions)) {

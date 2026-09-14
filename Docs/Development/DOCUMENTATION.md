@@ -41,7 +41,7 @@ READMEは人向けの製品説明・初回セットアップ・依頼例を載�
 
 [documents.json](documents.json) は管理文書のpath、role、max_bytes、unique ownsを持つ。routingや仕様本文、実装状態の別正本を作らない。UTF-8 byte上限を機械検査する。token削減は設計目的だが、tokenizerで測っていない数値を正確なtoken数として報告しない。
 
-AGENTSは短い常時入口、通常workflow/契約は一つの作業で読める量を保つ。上限超過時はまず責務と重複を見直す。台帳等の参照用途で情報を失う場合は、理由を明示してmanifestの上限を変更する。CONTROLSは追加操作画面を含む参照仕様として9000 bytes、VERIFICATIONは15要件の根拠表として12000 bytesを上限とし、該当節・行だけ読む。改行削除だけで見かけの行数を減らさない。
+AGENTSは短い常時入口、通常workflow/契約は一つの作業で読める量を保つ。上限超過時はまず責務と重複を見直す。台帳等の参照用途で情報を失う場合は、理由を明示してmanifestの上限を変更する。CONTROLSは追加操作画面と動的な音声出力検出の状態規約を含む参照仕様として10000 bytes、VERIFICATIONは15要件の根拠表として12000 bytesを上限とし、該当節・行だけ読む。改行削除だけで見かけの行数を減らさない。
 
 ## 文書先行の開発
 
@@ -56,3 +56,5 @@ AGENTSは短い常時入口、通常workflow/契約は一つの作業で読め�
 5. 変更したコードがあれば対象behavior試験を行う。文書の意味的整合性、未実装の誤記、ユーザー要求の欠落はlintだけで保証しない。
 
 配置を変更する場合だけ [DIRECTORIES](../Architecture/DIRECTORIES.md)。開発環境や標準コマンドが必要な場合だけ [CONTRIBUTING](CONTRIBUTING.md)。認証、外部コード、archive境界を変更する場合だけ [SECURITY](SECURITY.md) を読む。
+
+MASTERING_ABは比較・事前レンダリングjob・ダウンロード形式の状態規約を所有するため8000 bytesとする。

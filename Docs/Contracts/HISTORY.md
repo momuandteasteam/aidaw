@@ -28,7 +28,7 @@ project_restoreは保持版を解決し、その内容を新revisionへ保存す
 
 state/history/revisionsは親・hash・要求ID・summaryを持つJSON差分、checkpointsは再構成の基準、objectsは内容hashで共有する不透明データ。ID付き配列をID別構造へ正規化し、局所編集で未変更演奏を全量複製しない。plugin stateの内部を解釈して独自の意味差分にしない。
 
-現在のcheckpoint間隔は50版。保持版はcheckpointと差分から解決し、内容hashを検証する。未公開headより先のcommitを正式履歴として列挙せず、壊れた差分を飛ばして別の音を再生しない。旧履歴を読む場合は実在する到達可能な範囲だけを移行し、不足版を捏造しない。
+checkpoint間隔は50版。保持版はcheckpointと差分から解決し、内容hashを検証する。未公開headより先のcommitを正式履歴として列挙せず、壊れた差分を飛ばして別の音を再生しない。旧履歴を読む場合は実在する到達可能な範囲だけを移行し、不足版を捏造しない。
 
 履歴の状態とrender cacheは別物。cacheは対象revision、song/track範囲、source、plugin state、engine identity、処理条件で区別する。過去版から参照される原音・state objectを「古いcache」として消さない。
 
@@ -46,6 +46,10 @@ project_saveは両kind共通の作品名.aidaw.zipを作る。日常編集は展
 
 ## 実装と確認
 
-型は [workspace](../../Core/Source/Contracts/workspace.ts)、確定点は [node-workspace](../../Core/Source/Adapters/node/workspace/node-workspace.ts)、差分は [history](../../Core/Source/Adapters/node/workspace/history.ts)、archiveは [package](../../Core/Source/Adapters/node/workspace/package.ts)、現在ビューは [project-views](../../Core/Source/Adapters/node/workspace/project-views.ts)。
+実装: Core/Source/Adapters/node/workspace/ のnode-workspace.ts、history.ts、package.ts、project-views.ts。
 
 [history試験](../../Core/Tests/history.test.mjs)、[archive試験](../../Core/Tests/archive.test.mjs)、[workspace-port試験](../../Core/Tests/workspace-port.test.mjs) を変更範囲に応じて確認する。実行根拠は [VERIFICATION](../Development/VERIFICATION.md) の関連要件行。作品内規約を変える場合は [PROJECT_RULES](../../Workflows/Templates/PROJECT_RULES.md)。
+
+Design status: ready
+
+読取時のschema初期値追加を履歴の親状態に混ぜない。changeは保存された未加工文書をhash比較・差分の親に用い、編集準備にはparse済み複製を渡す。初期値は次の正式commitに含め、過去hashを書き換えない。variants欠損の分離作品を更新・再読込し、旧版の完全保持と実データ改変の拒否を回帰検証する。

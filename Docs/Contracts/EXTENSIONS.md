@@ -14,7 +14,9 @@ manifestはデータであり、読み取り時にpackage内コードを実行�
 
 ## Instrument / Effect
 
-標準GM、EQ、Limiter、Reverbは独立した高速native plugin packageとして導入する。曲ごとのスクリプトにDSPを閉じ込めず、本体の簡易音源へ無断代用しない。共通native sourceの所在と、実行する独立binaryの所在を区別する。
+AIDAW製エフェクトの正式名・ホスト表示名・VST3名は必ず `AIDAW `（末尾に半角空白）を接頭語にする。現在は AIDAW Gain / AIDAW EQ / AIDAW Limiter / AIDAW Reverb / AIDAW Enhancer / AIDAW Imager / AIDAW BassMono。今後追加する製品にも適用する。第三者製プラグイン名は変更しない。package_idやparameter IDは表示名と区別する。
+
+標準GM、EQ、Limiter、Reverb、Enhancer、Imager、BassMono、Gainは独立した高速native plugin packageとして導入する。曲ごとのスクリプトにDSPを閉じ込めず、本体の簡易音源へ無断代用しない。共通native sourceの所在と、実行する独立binaryの所在を区別する。
 
 現在の管理package manifestはschema_version 1。package_id、version、category、format、entry、platform、archを持ち、任意resourcesに相対pathとSHA-256を記す。管理packageのformatはVST3、entryは完全なVST3 bundle。一般のcatalog探索で扱う他formatとは別の契約である。
 
@@ -47,3 +49,11 @@ MIDI adapterはchannel、note/CC、key/encoder割当、absolute/relative入力�
 入口は [plugin-packages](../../Core/Source/Adapters/node/engine/plugin-packages.ts)、[engine-installation](../../Core/Source/Adapters/node/engine/engine-installation.ts)、[StarterPlugins](../../Core/Source/StarterPlugins/StarterPlugin.cpp)、[controller registry](../../Plugins/Controllers/index.mjs)、[MIDI adapter](../../Plugins/Controllers/midi.mjs)。
 
 [plugin-packages試験](../../Core/Tests/plugin-packages.test.mjs)、[engine-installation試験](../../Core/Tests/engine-installation.test.mjs)、[controllers試験](../../Core/Tests/controllers.test.mjs)、[hardware-profile試験](../../Core/Tests/hardware-profile.test.mjs) を変更範囲に応じて確認する。実機・native・商用音源の確認範囲は [VERIFICATION](../Development/VERIFICATION.md) の関連行。
+
+標準エフェクトのDSPと品質判定は[STANDARD_DSP](STANDARD_DSP.md)。
+
+名前付きFX列はplugin binaryと区別する。[EFFECT_CHAINS](EFFECT_CHAINS.md)に定義する。
+
+## 標準音源と配布方針
+
+音源はGMのみ、既存FX維持。DECK・エンジン・内蔵VST3のOS別ビルド済み配布を計画。現setupはソースビルド。

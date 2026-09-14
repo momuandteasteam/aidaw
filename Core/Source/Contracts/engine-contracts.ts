@@ -12,10 +12,10 @@ export interface PluginInspection {state_base64:string;parameters:ParameterDescr
 export interface RenderRequest {plan:AudioPlan;output:string;tail_seconds:number;sample_format?:string}
 export interface RenderResult {output:string;analysis:AudioAnalysis;revision:number;automation:Data;latency_compensation:{tracks:Data[];master_samples:number;trimmed_samples:number;[key:string]:unknown}}
 export interface PlaybackMixChange {track_id?:string;bus_id?:string;mute?:boolean;solo?:boolean;gain_db?:number;pan?:number}
-export interface PlaybackRequest {plan:AudioPlan;start_frame:string;tail_seconds:number;loop:boolean;loop_start_frame:string;loop_end_frame:string;output_device:string;monitor_gain_db:number}
+export interface PlaybackRequest {prepared_comparison?:{paths:string[];slot:number};start_paused?:boolean;plan:AudioPlan;start_frame:string;tail_seconds:number;loop:boolean;loop_start_frame:string;loop_end_frame:string;output_device:string;monitor_gain_db:number}
 export type PlaybackState='queued'|'starting'|'playing'|'paused'|'stopped'|'completed'|'failed'|'cancelled';
 export interface PlaybackStatus {state:PlaybackState;position_frame?:string;duration_frames?:string;control_sequence?:number;[key:string]:unknown}
-export type PlaybackControl={action:'pause'|'resume'|'stop'}|{action:'seek';frame:string}|{action:'set_mix';changes:PlaybackMixChange[]}|{action:'set_volume';gain_db:number};
+export type PlaybackControl={action:'replace_comparison';slot:number;path:string}|{action:'select_comparison';slot:number}|{action:'pause'|'resume'|'stop'}|{action:'seek';frame:string}|{action:'set_mix';changes:PlaybackMixChange[]}|{action:'set_volume';gain_db:number};
 export interface PlaybackSession {ready:Promise<PlaybackStatus>;done:Promise<PlaybackStatus>;status():Promise<PlaybackStatus|undefined>;control(change:PlaybackControl):Promise<void>;close():Promise<void>}
 export interface AudioOutputs {device_types:Array<{name:string;outputs:string[]}>;default_output:string;required_sample_rate:number}
 export interface PluginMetadata {plugin_id:string;name:string;vendor:string;version:string;format:string;instrument:boolean;inputs:number;outputs:number;location:string}

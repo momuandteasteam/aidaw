@@ -1,17 +1,56 @@
+import {projectFiles} from './project-files.mjs';
 import {createDeckState,reduceDeckState,buildPads,commandForPad,pageItems,songsOf,songOf,graphOf,tracksOf,versionsOf,versionOf,isMastering,isActive,acceptsStatus,startFrame,comparisonLabel,auditionChanges} from '../../ControlSurface/model.mjs';
 import {buildEncoders,commandForEncoder,encoderTarget,encoderSelection,adjustEncoderDraft} from '../../ControlSurface/encoders.mjs';
 import {createSurfaceSnapshot,resolveSurfaceAction} from '../../ControlSurface/surface-contract.mjs';
 export function createControlRuntime({application,host,onError=()=>{}}){
 let state=createDeckState(),generation=0,pollTimer,pending=false,bootstrapping=true,disposed=false;
 let artworkKey='',artworkUrl=null,artworkRequest=0;
+const waveformCache=new Map();
 let waveformKey='',waveform=null,overlay=null,overlayTimer,volumeQueue=Promise.resolve();
 let contextSignature='',contextQueue=Promise.resolve(),contextPollAt=0,seekQueue=Promise.resolve();
+let comparisonEpoch=0,positionEpoch=0,seeking=0;
 let previewTimer,previewPromise=Promise.resolve(),transportIntent=0,sequence=0,errorSequence=0;
 const listeners=new Set();
 const requestId=()=>crypto.randomUUID();
-const api=(name,args={})=>application.invoke(name,args);
+let mixTimer,mixQueue=Promise.resolve(),mixRead=0;const pendingMix=new Map();
+const rawApi=(name,args={})=>application.invoke(name,args);
+const api=async(name,args={})=>{
+ const edit=Number.isInteger(args.base_revision)||['export_start','render_start','delivery_publish','separation_export','project_save'].includes(name);
+ if(edit&&state.api.includes('working_mix_get')&&!name.startsWith('working_mix_')){
+  await flushMix();const mix=await rawApi('working_mix_get',{project_id:args.project_id});
+  if(mix.entries.length){
+   const summary=mix.entries.map(e=>`${e.target.name}: ${Object.entries(e.values).map(([k,v])=>`${k==='gain_db'?'ゲイン':'パン'} ${e.base_values[k]} → ${v}${k==='gain_db'?' dB':''}`).join(', ')}${e.status==='conflict'?'（競合）':''}`).join('\n');
+   const choice=await host.form('GUIの調整をどう扱いますか',[{name:'action',label:'作業中の調整',value:mix.entries.some(e=>e.status==='conflict')?'keep':'include',required:true,options:[{value:'include',label:'取り込んで続ける'},{value:'keep',label:'取り込まずに続ける（調整はこの端末に保持）'},{value:'discard',label:'調整を破棄して続ける'}]}],'続ける',summary);
+   if(!choice)throw Error('操作をキャンセルしました。GUIの調整は保持しています。');
+   if(choice.action==='keep')args={...args,working_copy:{action:'keep',token:mix.token}};
+   else{const result=await rawApi('working_mix_resolve',{project_id:args.project_id,token:mix.token,action:choice.action,request_id:requestId()});
+    if(Number.isInteger(args.base_revision))args={...args,base_revision:result.revision};
+    if(args.revision!==undefined&&['export_start','separation_export'].includes(name))args={...args,revision:result.revision};
+    if(args.parent_version_id||args.version_id){const doc=await rawApi('project_document',{project_id:args.project_id});const song=doc.mastering?.songs.find(s=>s.id===args.song_id);if(song)args={...args,...(args.parent_version_id?{parent_version_id:song.current_version_id}:{}),...(args.version_id?{version_id:song.current_version_id}:{})};}
+    if(args.project_id===state.projectId)await reload();
+   }
+  }
+ }
+ return rawApi(name,args);
+};
+function queueMix(){if(!state.api.includes('working_mix_set'))return;const t=encoderTarget(state),draft=state.dialDrafts?.[t?.key];if(!draft)return;mixRead++;pendingMix.set(t.key,structuredClone(draft));clearTimeout(mixTimer);mixTimer=setTimeout(()=>void flushMix().catch(error),300);}
+async function flushMix(){clearTimeout(mixTimer);const run=async()=>{
+ for(const [key,draft]of [...pendingMix]){
+  const t=draft.target,p=t.project_id,mix=await rawApi('working_mix_get',{project_id:p});
+  const target={kind:t.kind,...(t.kind==='mastering'?{song_id:t.song_id,version_id:t.version_id}:t.kind==='track'?{track_id:t.track_id}:{bus_id:t.bus_id})};
+  await rawApi('working_mix_set',{project_id:p,base_revision:t.base_revision,expected_token:mix.token,target,values:draft.values});
+  mixRead++;if(pendingMix.get(key)===draft){pendingMix.delete(key);const shown=state.dialDrafts?.[key];if(shown&&JSON.stringify(shown.values)===JSON.stringify(draft.values)){state.dialDrafts[key]={...shown,saved:true};render();}}
+ }
+};mixQueue=mixQueue.catch(()=>{}).then(run);await mixQueue;}
+async function refreshMix(){if(!state.document||!state.api.includes('working_mix_get'))return;const p=state.projectId,r=++mixRead;const mix=await rawApi('working_mix_get',{project_id:p});if(r!==mixRead||p!==state.projectId||disposed)return;
+ const drafts={};for(const e of mix.entries){const old=state.dialDrafts?.[e.key];drafts[e.key]={target:{...e.target,base_revision:mix.revision},values:e.values,saved:true,previewed:e.status!=='conflict'&&old?.previewed&&JSON.stringify(old.values)===JSON.stringify(e.values),conflict:e.status==='conflict'};}
+ for(const [k,d]of pendingMix)if(d.target.project_id===p)drafts[k]=d;
+ state={...state,dialDrafts:drafts,workingMix:mix};render();schedulePreview();
+}
 const render=()=>{if(disposed)return;sequence++;for(const listener of listeners)listener(snapshot());};
-const patch=values=>{if(disposed)return;state=reduceDeckState(state,{type:'patch',patch:values});void refreshArtwork();render();shareContext();void refreshWaveform();};
+const patch=values=>{if(disposed)return;if(values.songId!==undefined&&values.songId!==state.songId)values={...values,comparisonMeters:{}};
+ const pb=values.playback,m=pb?.comparison_meter;if(m?.available&&pb.project_id===state.projectId&&pb.song_id===state.songId&&pb.selection){const k=JSON.stringify([pb.project_id,pb.song_id,pb.selection]);values={...values,comparisonMeters:{...state.comparisonMeters,[k]:{rms:m.rms,peak:m.sample_peak}}};}
+state=reduceDeckState(state,{type:'patch',patch:values});void refreshArtwork();render();shareContext();void refreshWaveform();};
 const error=e=>{if(!disposed){errorSequence++;onError(e);}};
 const form=(...args)=>host.form(...args);
 const target=()=>({project_id:state.projectId,...(isMastering(state)&&state.songId?{song_id:state.songId,version_id:versionOf(state)?.id}:{})});
@@ -20,16 +59,17 @@ const duration=()=>Number(state.playback?.duration_frames??(isMastering(state)?v
 async function refreshArtwork(force=false){
  const key=state.document&&state.api.includes('project_artwork')?JSON.stringify([state.projectId,state.document.revision]):'';
  if(!force&&key===artworkKey)return;
- artworkKey=key;artworkUrl=null;const request=++artworkRequest;
+ if(!key||!artworkKey||JSON.parse(key)[0]!==JSON.parse(artworkKey)[0])artworkUrl=null;artworkKey=key;const request=++artworkRequest;
  if(!key)return;
  try{const result=await api('project_artwork',{project_id:state.projectId});if(!disposed&&request===artworkRequest){artworkUrl=result?.data_url??null;render();}}catch{if(!disposed&&request===artworkRequest){artworkUrl=null;render();}}
 }
 async function refreshWaveform(){
  if(!state.document||isMastering(state)&&!songOf(state)||!state.api.includes('project_waveform'))return;
- const args={...target(),...(state.activeSlot?{comparison:state.activeSlot.toLowerCase()}:{}),bins:400};
+ const args={...target(),revision:state.playback?.revision??state.auditionRevision??state.document.revision,...(state.activeSlot?{comparison:state.activeSlot.toLowerCase()}:{}),bins:400};
  if(args.comparison)delete args.version_id;
- const key=JSON.stringify([args,state.document.revision]);if(key===waveformKey)return;waveformKey=key;waveform=null;render();
- try{const result=await api('project_waveform',args);if(key===waveformKey){waveform=result;render();}}catch(e){if(key===waveformKey){waveformKey='';error(e);}}
+ const prepared=Boolean(state.playback?.prepared_comparison),keyOf=a=>JSON.stringify([a,prepared]),key=keyOf(args);if(key===waveformKey)return;waveformKey=key;waveform=waveformCache.get(key)??null;render();
+ const load=async a=>{const k=keyOf(a);if(waveformCache.has(k))return waveformCache.get(k);const result=await api('project_waveform',a);waveformCache.set(k,result);if(waveformCache.size>4)waveformCache.delete(waveformCache.keys().next().value);return result;};
+ try{const result=await load(args);if(key===waveformKey){waveform=result;render();}if(args.comparison)await load({...args,comparison:args.comparison==='a'?'b':'a'});}catch(e){if(key===waveformKey){waveformKey='';error(e);}}
 }
 function shareContext(){
  if(!state.document||!state.api.includes('active_context_set'))return;
@@ -38,9 +78,9 @@ function shareContext(){
  contextQueue=contextQueue.catch(()=>{}).then(()=>api('active_context_set',context)).catch(e=>{contextSignature='';error(e);});
 }
 function exportSummary(){const album=state.exportScope==='album'&&isMastering(state);return `${album?'アルバム全曲':isMastering(state)?songOf(state)?.name??'曲未選択':state.document?.name??'未選択'} · ${state.formats.join(' / ').toUpperCase()} · ${album?songsOf(state).map(s=>`${s.name}: ${s.accepted_version_id??s.current_version_id}`).join('、'):isMastering(state)?versionOf(state)?.id??'版未選択':`R${state.document?.revision??'—'}`}`;}
-async function reload(){if(!state.projectId)return;artworkKey='';const id=state.projectId,token=++generation;const doc=await api('project_document',{project_id:id});if(token!==generation||id!==state.projectId)return;const song=(doc.mastering?.songs??doc.songs??[]).find(s=>s.id===state.songId)??(doc.mastering?.songs??doc.songs??[])[0];patch({document:doc,trackId:tracksOf({document:doc}).some(t=>t.id===state.trackId)?state.trackId:tracksOf({document:doc})[0]?.id??null,songId:song?.id??null,versionId:song?(song.versions.some(v=>v.id===state.versionId)?state.versionId:song.current_version_id):state.versionId});}
+async function reload(){if(!state.projectId)return;const id=state.projectId,token=++generation;const doc=await api('project_document',{project_id:id});if(token!==generation||id!==state.projectId)return;const song=(doc.mastering?.songs??doc.songs??[]).find(s=>s.id===state.songId)??(doc.mastering?.songs??doc.songs??[])[0];patch({document:doc,trackId:tracksOf({document:doc}).some(t=>t.id===state.trackId)?state.trackId:tracksOf({document:doc})[0]?.id??null,songId:song?.id??null,versionId:song?(song.versions.some(v=>v.id===state.versionId)?state.versionId:song.current_version_id):state.versionId});await refreshMix();}
 async function refresh(){const result=await api('project_list');patch({projects:Array.isArray(result)?result:result.projects??[]});}
-async function chooseProject(id){await stop();generation++;patch({projectId:id,document:null,songId:null,trackId:null,versionId:null,position:'0',playback:null,audition:null,activeSlot:null,auditionRevision:undefined});await reload();patch({mode:'listen',page:0,stack:[]});await contextQueue;}
+async function chooseProject(id){await flushMix();await stop();generation++;patch({comparisonMeters:{},projectId:id,document:null,songId:null,trackId:null,versionId:null,position:'0',playback:null,audition:null,activeSlot:null,auditionRevision:undefined});await reload();patch({mode:'listen',page:0,stack:[]});await contextQueue;}
 async function navigate(mode){state=reduceDeckState(state,{type:'navigate',mode});if((mode==='revisionlist'||mode==='history')&&!isMastering(state))await loadHistory();if(mode==='fxparameters')await loadFxParameters();render();}
 async function loadHistory(){const id=state.projectId,page=state.page;const history=await api('project_history',{project_id:id,offset:page*3,limit:3});if(id===state.projectId&&page===state.page)patch({history:history.entries??history.revisions??[],historyTotal:history.total,historyOffset:page*3});}
 async function loadFxParameters(){
@@ -60,25 +100,27 @@ async function play(selection={}){
  const intent=transportIntent;
  if(state.playback?.state==='playing'&&!Object.keys(selection).length){patch({playback:await api('playback_pause',{playback_id:state.playback.playback_id})});return;}
  if(state.playback?.state==='paused'&&!Object.keys(selection).length){patch({playback:await api('playback_resume',{playback_id:state.playback.playback_id})});return;}
- await stop();if(intent!==transportIntent)return;const args={...target(),...selection,start_frame:startFrame(state.position,duration()),monitor_gain_db:state.monitorGain??0,output_device:host.outputDevice()||undefined};if(selection.comparison)delete args.version_id;const result=await api('playback_start',args);if(intent!==transportIntent){patch({playback:await api('playback_stop',{playback_id:result.playback_id})});return;}patch({playback:result,position:result.start_frame??state.position,activeSlot:selection.comparison?.toUpperCase()??null,auditionRevision:selection.revision});
+ if(!Object.keys(selection).length&&state.activeSlot)selection={comparison:state.activeSlot.toLowerCase()};
+ await stop();if(intent!==transportIntent)return;const args={...target(),...(state.document?.kind==='separation'&&state.playback?.project_id===state.projectId?{separation_mix:state.playback.effective_mix?.tracks?.map(t=>({track_id:t.track_id??t.id,mute:Boolean(t.mute),solo:Boolean(t.solo)}))}:{}),...selection,start_frame:startFrame(state.position,duration()),monitor_gain_db:state.monitorGain??0,output_device:host.outputDevice()||undefined};if(selection.comparison)delete args.version_id;const result=await api('playback_start',args);if(intent!==transportIntent){patch({playback:await api('playback_stop',{playback_id:result.playback_id})});return;}patch({playback:result,position:result.start_frame??state.position,activeSlot:selection.comparison?.toUpperCase()??null,auditionRevision:selection.revision});
 }
 async function seek(frame){
- const position=String(Math.max(0,Math.min(duration(),Number(frame))));patch({position});
+ const position=String(Math.max(0,Math.min(Math.max(0,Math.floor(duration())-1),Math.round(Number(frame)))));positionEpoch++;seeking++;patch({position,...(!isActive(state)&&state.playback?{playback:{...state.playback,position_frame:position}}:{})});
  const id=state.playback?.playback_id;
  seekQueue=seekQueue.catch(()=>{}).then(async()=>{if(isActive(state)&&state.playback.playback_id===id&&state.position===position){const result=await api('playback_seek',{playback_id:id,frame:position});if(state.playback?.playback_id===id)patch({playback:result});}});
- await seekQueue;
+ try{await seekQueue;}finally{seeking--;positionEpoch++;}
 }
 async function apply(operations){await api('project_apply',{...editArgs(),operations});await reload();}
 function schedulePreview(){clearTimeout(previewTimer);previewTimer=setTimeout(()=>{previewPromise=previewPromise.then(previewDrafts).catch(error);},100);}
 async function previewDrafts(){
  const playback=state.playback;if(!playback||!['playing','paused'].includes(playback.state))return;
- const entries=Object.entries(state.dialDrafts??{}).filter(([,draft])=>!draft.previewed&&draft.target.project_id===playback.project_id&&(draft.target.kind!=='mastering'||draft.target.song_id===playback.song_id&&draft.target.version_id===playback.version_id));
+ const entries=Object.entries(state.dialDrafts??{}).filter(([,draft])=>!draft.conflict&&!draft.previewed&&(playback.revision===undefined||playback.revision===draft.target.base_revision)&&state.auditionRevision===undefined&&draft.target.project_id===playback.project_id&&(draft.target.kind!=='mastering'||draft.target.song_id===playback.song_id&&draft.target.version_id===playback.version_id));
  if(!entries.length)return;
  const changes=entries.map(([,draft])=>({...draft.values,...(draft.target.kind==='mastering'?{track_id:draft.target.song_id}:draft.target.kind==='track'?{track_id:draft.target.track_id}:{bus_id:draft.target.bus_id})}));
  const result=await api('playback_set_mix',{playback_id:playback.playback_id,changes});if(state.playback?.playback_id!==playback.playback_id)return;
  const drafts={...state.dialDrafts};for(const [key,draft]of entries)if(JSON.stringify(drafts[key]?.values)===JSON.stringify(draft.values))drafts[key]={...draft,previewed:true};patch({playback:result,dialDrafts:drafts});
 }
 async function commitParameters(){
+ if(state.api.includes('working_mix_resolve')){await flushMix();const mix=await rawApi('working_mix_get',{project_id:state.projectId});await rawApi('working_mix_resolve',{project_id:state.projectId,token:mix.token,action:'include',request_id:requestId()});await reload();return;}
  const target=encoderTarget(state),draft=state.dialDrafts?.[target?.key];if(!draft)return;
  if(draft.target.base_revision!==state.document.revision)throw new Error('保存後に作品が変更されています。「調整を破棄」で最新値に戻してから調整してください。');
  const wasPlaying=state.playback?.state==='playing',wasPaused=state.playback?.state==='paused',position=state.position,request=requestId(),intent=transportIntent;await stop();
@@ -89,6 +131,7 @@ async function commitParameters(){
  if(intent===transportIntent&&(wasPlaying||wasPaused)){await play();if(wasPaused&&intent===transportIntent){await readyPlayback();patch({playback:await api('playback_pause',{playback_id:state.playback.playback_id})});}}
 }
 async function discardParameters(){
+ if(state.api.includes('working_mix_resolve')){await flushMix();const mix=await rawApi('working_mix_get',{project_id:state.projectId});await rawApi('working_mix_resolve',{project_id:state.projectId,token:mix.token,action:'discard',request_id:requestId()});await stop();await reload();return;}
  const target=encoderTarget(state);if(!target)return;clearTimeout(previewTimer);await previewPromise.catch(()=>{});await reload();
  const current=encoderTarget(state),drafts={...state.dialDrafts};delete drafts[target.key];patch({dialDrafts:drafts});
  if(current&&state.playback&&['playing','paused'].includes(state.playback.state)&&current.project_id===state.playback.project_id&&(current.kind!=='mastering'||current.song_id===state.playback.song_id&&current.version_id===state.playback.version_id)){
@@ -134,11 +177,55 @@ async function toggleMix(kind){
  patch({playback:result});
 
 }
+const files=projectFiles({api,host,getState:()=>state,stop,reload:async()=>{await reload();await refreshArtwork(true);},chooseProject,refresh});
+async function switchSeparation(){
+ if(state.document?.kind!=='separation'||!state.document.separation?.source_asset_id)return;
+ const doc=await api('project_document',{project_id:state.projectId}),engine=doc.separation.engine==='demucs'?'spleeter':'demucs';
+ const previous=state.playback?.project_id===state.projectId?await api('playback_status',{playback_id:state.playback.playback_id}):null;
+ if(['playing','paused'].includes(previous?.state)&&previous.separation_engines?.includes(engine)){const result=await api('playback_switch_separation',{project_id:state.projectId,playback_id:previous.playback_id,engine,base_revision:doc.revision,request_id:requestId()});patch({playback:result,position:result.position_frame??state.position});await reload();return;}
+ const mix=previous?.effective_mix?.tracks?.map(t=>({track_id:t.track_id??t.id,mute:Boolean(t.mute),solo:Boolean(t.solo)}));
+ await stop();const stopped=state.playback,position=stopped?.position_frame??previous?.position_frame??state.position;
+ const variant=doc.separation.variants?.[engine],cached=variant?.source_asset_id===doc.separation.source_asset_id&&variant?.model===(engine==='demucs'?'htdemucs':'4stems-16kHz');
+ let jobId,cancelRequested=false;const progress=cached?null:host.separationProgress?.(engine,()=>{cancelRequested=true;return jobId&&api('job_cancel',{job_id:jobId});});
+ try{
+  const job=await api('separation_start',{project_id:state.projectId,source_asset_id:doc.separation.source_asset_id,base_revision:doc.revision,request_id:requestId(),engine});jobId=job.job_id;if(cancelRequested)await api('job_cancel',{job_id:jobId});
+  for(;;){const result=await api('job_status',{job_id:jobId});progress?.update(result.progress??{phase:result.state==='queued'?'順番待ち':'処理中'});if(result.state==='succeeded')break;if(['failed','cancelled'].includes(result.state))throw Error(result.error??'分離をキャンセルしました');await new Promise(r=>setTimeout(r,500));}
+  patch({playback:null,position});await reload();
+  if(['playing','paused'].includes(previous?.state)){await play({separation_mix:mix,start_paused:previous.state==='paused'});}else if(mix)patch({playback:{...stopped,state:'stopped',effective_mix:{tracks:mix,returns:[]}}});
+ }finally{progress?.close();}
+}
 async function createProject(){const data=await form('新規プロジェクト',[{name:'kind',label:'種類',options:[{value:'composition',label:'曲の制作'},{value:'mastering',label:'アルバムのマスタリング'},{value:'separation',label:'ステム分離'}]},{name:'name',label:'曲名 / アルバム名',required:true}], '作成');if(!data)return;const id=requestId();const created=await api('project_create',{project_id:id,name:data.name,kind:data.kind,bpm:120,length_ticks:15360,meter:[4,4]});await refresh();await chooseProject(id);await navigate('listen');if(created.tip)host.showTip?.(created.tip);if(data.kind==='separation')await host.openSeparation?.();}
 async function openFile(){const path=await host.chooseFile('project');if(!path)return;const id=requestId();await api('project_open',{project_id:id,path});await refresh();await chooseProject(id);await navigate('listen');}
 async function addSong(){const path=await host.chooseFile('audio');if(!path)return;const data=await form('アルバムに曲を追加',[{name:'name',label:'曲名',value:path.split(/[\\/]/).pop().replace(/\.[^.]+$/,''),required:true}],'原音を取り込む','原音として保存し、この曲専用のステレオチェーンを作成します。');if(!data)return;await stop();const asset=await api('asset_import',{project_id:state.projectId,path,role:'source'});const assetId=asset.asset_id??asset.id??asset.asset?.id;if(!assetId)throw new Error('取り込んだ原音のIDが取得できません');const songId=requestId();await api('mastering_add_song',{...editArgs(),song_id:songId,name:data.name,asset_id:assetId,effects:[]});patch({songId,versionId:null});await reload();}
 async function assign(slot){if(!state.versionId)return;await stop();await apply([{op:'set_comparison',song_id:state.songId,slot,selection:{kind:'version',version_id:state.versionId}}]);}
-async function switchSlot(slot){const selection=songOf(state)?.comparison?.[slot];if(!selection)return;const position=state.position,intent=transportIntent;await stop();if(intent!==transportIntent)return;patch({position});const options=selection.kind==='version'?{version_id:selection.version_id}:{comparison:slot};await play(options);if(intent===transportIntent)patch({activeSlot:slot.toUpperCase()});}
+async function switchSlot(slot){
+ comparisonEpoch++;
+ const song=songOf(state),selection=song?.comparison?.[slot];if(!selection)return;
+ const intent=transportIntent,p=state.projectId,songId=song.id;
+ if(['playing','paused'].includes(state.playback?.state)){
+  patch({comparisonLoading:slot.toUpperCase()});let result;try{result=await rawApi('playback_switch_mastering',{playback_id:state.playback.playback_id,project_id:p,song_id:songId,comparison:slot,revision:state.document.revision});}catch(e){try{const actual=await rawApi('playback_status');if(p===state.projectId&&songId===state.songId&&actual.project_id===p&&actual.song_id===songId)patch({playback:actual,position:actual.position_frame??state.position,activeSlot:['playing','paused','stopped','completed'].includes(actual.state)?actual.comparison?.toUpperCase()??state.activeSlot:null});}catch{}throw e;}finally{patch({comparisonLoading:null});}
+  if(intent!==transportIntent||p!==state.projectId||songId!==state.songId){await rawApi('playback_stop',{playback_id:result.playback_id});return;}
+  patch({playback:result,position:result.position_frame??result.start_frame,activeSlot:slot.toUpperCase(),versionId:result.version_id,auditionRevision:undefined,audition:null});
+ }else{
+  if(isActive(state))throw Error('再生の準備が完了してから切り替えてください。');
+  patch({activeSlot:slot.toUpperCase(),versionId:selection.kind==='version'?selection.version_id:song.versions.find(v=>v.source_asset_id===selection.source_asset_id)?.id,playback:null,auditionRevision:undefined});
+ }
+}
+async function moveSong(delta){
+ const songs=songsOf(state);if(songs.length<2)return;
+ const index=songs.findIndex(s=>s.id===state.songId),next=songs[(index+delta+songs.length)%songs.length],playing=state.playback?.state==='playing',slot=state.activeSlot??'A';
+ await flushMix();await stop();
+ const selected=next.comparison?.[slot.toLowerCase()],version=selected?.kind==='version'?selected.version_id:next.current_version_id;
+ patch({songId:next.id,versionId:version,activeSlot:slot,position:'0',playback:null,auditionRevision:undefined,comparisonMeters:{}});
+ if(playing)await play();
+}
+async function cycleSlot(slot){
+ const song=songOf(state);if(!song)return;const p=state.projectId,intent=transportIntent;
+ await rawApi('mastering_comparison_cycle',{project_id:p,song_id:song.id,slot,base_revision:state.document.revision,request_id:requestId()});
+ if(p!==state.projectId||song.id!==state.songId)return;
+ await reload();if(intent===transportIntent&&state.activeSlot===slot.toUpperCase())await switchSlot(slot);
+}
+
 async function acceptVersion(){await stop();await apply([{op:'set_accepted_version',song_id:state.songId,version_id:versionOf(state).id}]);}
 async function editVersion(){
  const old=versionOf(state);if(!old)return;
@@ -162,10 +249,23 @@ async function editVersion(){
 }
 async function editRouting(){
  const item=pageItems({...state,mode:'routing'}).find(t=>t.id===state.trackId);if(!item||item.id==='__master')return;
- const fields=[{name:'gain',label:'ゲイン (dB)',type:'number',min:-96,max:12,step:0.1,value:item.gain_db},{name:'pan',label:'パン (−1 左 / 1 右)',type:'number',min:-1,max:1,step:0.01,value:item.pan},{name:'master',label:'Masterへ出力',options:[{value:'yes',label:'出力する'},{value:'no',label:'出力しない'}],value:item.to_master?'yes':'no'}];
+ const draft=state.dialDrafts?.[encoderTarget(state)?.key];
+ const fields=[{name:'gain',label:'ゲイン (dB)',type:'number',min:-96,max:12,step:0.1,value:draft?.values.gain_db??item.gain_db},{name:'pan',label:'パン (−1 左 / 1 右)',type:'number',min:-1,max:1,step:0.01,value:draft?.values.pan??item.pan},{name:'master',label:'Masterへ出力',options:[{value:'yes',label:'出力する'},{value:'no',label:'出力しない'}],value:item.to_master?'yes':'no'}];
  for(const [i,s] of (item.sends??[]).entries())fields.push({name:`send_${i}`,label:`Send → ${(graphOf(state).buses??[]).find(b=>b.id===s.bus_id)?.name??s.bus_id} (dB)`,type:'number',min:-96,max:12,step:0.1,value:s.gain_db});
  if(!item.instrument)fields.splice(2,1);
- const values=await form(item.name,fields,'保存');if(!values)return;await stop();const changes={gain_db:Number(values.gain),pan:Number(values.pan),...(item.instrument?{to_master:values.master==='yes',sends:(item.sends??[]).map((s,i)=>({...s,gain_db:Number(values[`send_${i}`])}))}:{})};await apply([{op:item.instrument?'set_track':'set_bus',[item.instrument?'track_id':'bus_id']:item.id,changes}]);
+ const selected=encoderTarget(state);const values=await form(item.name,fields,'保存');if(!values)return;
+ if(state.api.includes('working_mix_set')){
+  if(selected?.key!==encoderTarget(state)?.key||selected.base_revision!==state.document.revision)throw Error('対象が変更されています。画面を開き直してください。');
+  const previous=state.dialDrafts?.[selected.key];state.dialDrafts={...state.dialDrafts,[selected.key]:{target:selected,values:{...previous?.values,gain_db:Number(values.gain),pan:Number(values.pan)},previewed:false}};render();queueMix();await flushMix();schedulePreview();
+  const routing=item.instrument?{to_master:values.master==='yes',sends:(item.sends??[]).map((s,i)=>({...s,gain_db:Number(values[`send_${i}`])}))}:null;
+  if(routing&&(routing.to_master!==item.to_master||JSON.stringify(routing.sends)!==JSON.stringify(item.sends??[]))){await stop();await apply([{op:'set_track',track_id:item.id,changes:routing}]);}
+  return;
+ }
+ await stop();const changes={gain_db:Number(values.gain),pan:Number(values.pan),...(item.instrument?{to_master:values.master==='yes',sends:(item.sends??[]).map((s,i)=>({...s,gain_db:Number(values[`send_${i}`])}))}:{})};await apply([{op:item.instrument?'set_track':'set_bus',[item.instrument?'track_id':'bus_id']:item.id,changes}]);
+}
+async function downloadMaster(){
+ const args={project_id:state.projectId,song_id:state.songId,revision:state.auditionRevision??state.document.revision,...(state.activeSlot?{comparison:state.activeSlot.toLowerCase()}:{version_id:state.versionId})};
+ const result=await host.downloadMastering(args,`${songOf(state)?.name??''} · ${state.activeSlot??''} · ${versionOf(state)?.label??''}`,stop,songOf(state)?.name??state.document.name);if(result)patch({lastOutput:result.output});
 }
 async function beginExport(){
  const data=await form('書き出し内容',[],'この内容で書き出す',exportSummary());if(!data)return;
@@ -193,7 +293,8 @@ async function dispatch(command){
  if(['adjustParameter','resetParameter','adjustFxParameter'].includes(command.type)){
   if(pending||state.busy)return;
   if(command.type==='adjustFxParameter'){const p=state.fxParameters?.find(p=>p.id===state.fxParameterId);if(p)patch({fxParameterValues:{...state.fxParameterValues,[p.id]:Math.max(0,Math.min(1,(state.fxParameterValues?.[p.id]??p.value)+command.delta))}});return;}
-  state=adjustEncoderDraft(state,command.parameter,command.delta??0,command.type==='resetParameter');render();schedulePreview();return;
+  if(state.dialDrafts?.[encoderTarget(state)?.key]?.conflict){error(Error('保存済みの値と競合しています。調整を破棄するか、保留して内容を確認してください。'));return;}
+  state=adjustEncoderDraft(state,command.parameter,command.delta??0,command.type==='resetParameter');render();queueMix();schedulePreview();return;
  }
  const navigation=['navigate','page','back'].includes(command.type);
  if(pending&&!navigation&&command.type!=='stop')return;
@@ -206,6 +307,10 @@ async function dispatch(command){
   else if(command.type.startsWith('format:')){const f=command.type.split(':')[1];patch({formats:state.formats.includes(f)?state.formats.filter(x=>x!==f):[...state.formats,f]});}
   else switch(command.type){
    case 'openSelected':await navigate('listen');break;
+   case 'switchSeparation':await switchSeparation();break;
+   case 'importAudio':await files.importAudio();break;
+   case 'sendMastering':await files.send('mastering');break;
+   case 'sendSeparation':await files.send('separation');break;
    case 'openWorkspace':{const id=await host.chooseProjectFolder();if(id)await chooseProject(id);break;}
    case 'separation':await host.openSeparation?.();break;case 'create':await createProject();break;case 'openFile':await openFile();break;case 'refresh':await refresh();if(state.projectId)await reload();break;
    case 'addSong':await addSong();break;
@@ -216,10 +321,10 @@ async function dispatch(command){
    case 'playSelectedVersion':await play({version_id:versionOf(state)?.id});break;
    case 'play':await play();break;case 'stop':await stop();break;case 'back5':await seek(Number(state.position)-240000);break;case 'forward5':await seek(Number(state.position)+240000);break;case 'home':await seek(0);break;
    case 'mute':case 'solo':case 'audition':await toggleMix(command.type);break;
-   case 'switchA':await switchSlot('a');break;case 'switchB':await switchSlot('b');break;case 'assignA':await assign('a');break;case 'assignB':await assign('b');break;
+   case 'cycleSelected':if(state.activeSlot)await cycleSlot(state.activeSlot==='A'?'b':'a');break;case 'moveSong':await moveSong(command.delta);break;case 'cycleA':await cycleSlot('a');break;case 'cycleB':await cycleSlot('b');break;case 'switchA':await switchSlot('a');break;case 'switchB':await switchSlot('b');break;case 'assignA':await assign('a');break;case 'assignB':await assign('b');break;
    case 'acceptVersion':await acceptVersion();break;case 'editVersion':await editVersion();break;case 'editRouting':await editRouting();break;
    case 'exportSong':patch({exportScope:'song'});await navigate('export');break;case 'exportAlbum':patch({exportScope:'album'});await navigate('export');break;case 'toggleScope':patch({exportScope:state.exportScope==='album'?'song':'album'});break;
-   case 'export':await beginExport();break;case 'reviewExport':await form('書き出し内容',[],'閉じる',exportSummary());break;case 'save':await save();break;
+   case 'downloadMaster':await downloadMaster();break;case 'export':await beginExport();break;case 'reviewExport':await form('書き出し内容',[],'閉じる',exportSummary());break;case 'save':await save();break;
    case 'midi':{const result=await api('export_midi',{project_id:state.projectId});patch({lastOutput:result.output});await host.saveOutput(result.output);break;}
    case 'reveal':await host.reveal(state.lastOutput);break;
    case 'output':host.openSettings();break;
@@ -232,7 +337,7 @@ async function dispatch(command){
 }
 async function poll(){if(disposed)return;try{
  if(!pending&&Date.now()-contextPollAt>2000){contextPollAt=Date.now();await refresh();if(state.projectId)await reload();}
-if(state.playback){const status=await api('playback_status',{playback_id:state.playback.playback_id});if(acceptsStatus(state,status)){patch({playback:status,position:status.position_frame??state.position});if(status.state==='playing')schedulePreview();}}if(state.jobs.some(j=>['queued','running','starting'].includes(j.state)))await pollJobs();}catch(e){error(e);}if(!disposed)pollTimer=setTimeout(poll,400);}
+if(isActive(state)&&!seeking&&!state.comparisonLoading){const id=state.playback.playback_id,intent=transportIntent,epoch=comparisonEpoch,positionToken=positionEpoch;try{const status=await api('playback_status',{playback_id:id});if(!seeking&&positionToken===positionEpoch&&epoch===comparisonEpoch&&intent===transportIntent&&!state.comparisonLoading&&state.playback?.playback_id===id&&acceptsStatus(state,status)){patch({playback:status,position:status.position_frame??state.position});if(status.state==='playing')schedulePreview();}}catch(e){if(!seeking&&positionToken===positionEpoch&&epoch===comparisonEpoch&&intent===transportIntent&&!state.comparisonLoading&&state.playback?.playback_id===id)throw e;}}if(state.jobs.some(j=>['queued','running','starting'].includes(j.state)))await pollJobs();}catch(e){error(e);}if(!disposed)pollTimer=setTimeout(poll,400);}
 async function bootstrap(){
  const data=await application.bootstrap(),preferences=await host.preferences();
  state.customLayouts=preferences.customLayouts??{};state.encoderAssignments=preferences.encoderAssignments??{};state.api=data.api??[];
@@ -254,9 +359,9 @@ async function surfaceDispatch(action){
  return {status:'accepted'};
 }
 return {
- getState:()=>state,snapshot,dispatch,dispatchAction:surfaceDispatch,patch,chooseProject,
+ flushMix,getState:()=>state,snapshot,dispatch,dispatchAction:surfaceDispatch,patch,chooseProject,
  subscribe(listener){listeners.add(listener);listener(snapshot());return()=>listeners.delete(listener);},
  async start(){if(disposed)return;patch({busy:true});try{await bootstrap();bootstrapping=false;patch({busy:false});void poll();}catch(e){bootstrapping=false;patch({busy:false});error(e);}},
- dispose(){disposed=true;clearTimeout(pollTimer);clearTimeout(previewTimer);clearTimeout(overlayTimer);listeners.clear();}
+ dispose(){void flushMix().catch(onError);disposed=true;clearTimeout(mixTimer);clearTimeout(pollTimer);clearTimeout(previewTimer);clearTimeout(overlayTimer);listeners.clear();}
 };
 }

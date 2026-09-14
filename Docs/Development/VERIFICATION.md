@@ -1,6 +1,6 @@
 # 検証の入口と根拠
 
-[REQUIREMENTS](REQUIREMENTS.md) の必要なIDだけを確認する。仕様本文は同表が示す所有文書へ進む。証拠欄は実ファイルへのリンク。最小テスト欄のファイル名はすべて `Core/Tests/` 相対。
+[REQUIREMENTS](REQUIREMENTS.md) の必要なIDだけを確認する。仕様本文は同表が示す所有文書へ進む。証拠は実ファイルへリンク。最小テストは `Core/Tests/` 相対。
 
 `implemented` は実装と検証入口がある状態。現在の環境で成功した、音を聴いた、実機確認したという意味ではない。`partial` は利用範囲と残件がある状態、`planned` は設計のみ。
 
@@ -14,12 +14,12 @@
 | R-004 | implemented。[domain.ts](../../Core/Source/Domain/domain.ts)、[service.ts](../../Core/Source/Application/service.ts)。[domain試験](../../Core/Tests/domain.test.mjs)、[core-controls試験](../../Core/Tests/core-controls.test.mjs) | current／accepted／比較は独立。試聴を採用・評価としない。 |
 | R-005 | implemented。[node-workspace.ts](../../Core/Source/Adapters/node/workspace/node-workspace.ts)、[history.ts](../../Core/Source/Adapters/node/workspace/history.ts)。[history試験](../../Core/Tests/history.test.mjs)、[workspace-port試験](../../Core/Tests/workspace-port.test.mjs) | prepare失敗・競合も検証。複数commitは非原子的。 |
 | R-006 | implemented。[package.ts](../../Core/Source/Adapters/node/workspace/package.ts)、[export.ts](../../Core/Source/Application/export.ts)。[archive試験](../../Core/Tests/archive.test.mjs)、[export試験](../../Core/Tests/export.test.mjs) | 未レンダー保存と音声書出しを区別。曲／album・版・形式を確認。 |
-| R-007 | partial。[model.mjs](../../Core/Source/ControlSurface/model.mjs)、[key-image.mjs](../../Core/Source/ControlSurface/key-image.mjs)、[index.html](../../Core/Source/Desktop/renderer/index.html)。[core-controls試験](../../Core/Tests/core-controls.test.mjs)、[button-layout試験](../../Core/Tests/button-layout.test.mjs) | 補助画面内の8キー到達試験あり。通常面3キーから全操作への到達は未確認。質感・BPM・割り当て非表示・正方形内の全操作・10pxノブ名・作品種別・青緑波形とカバー2枚はChromium確認。[artwork試験](../../Core/Tests/artwork.test.mjs)で不在・破損・切替競合を確認。 |
-| R-008 | implemented。[encoders.mjs](../../Core/Source/ControlSurface/encoders.mjs)、[waveform.mjs](../../Core/Source/ControlSurface/waveform.mjs)、[elements.mjs](../../Plugins/Skins/elements.mjs)。[waveform-ui試験](../../Core/Tests/waveform-ui.test.mjs)、[player-knobs試験](../../Core/Tests/player-knobs.test.mjs) | 実測波形のみ。monitorと保存mixを分け、実音を検証。 |
+| R-007 | partial。[model.mjs](../../Core/Source/ControlSurface/model.mjs)、[key-image.mjs](../../Core/Source/ControlSurface/key-image.mjs)、[index.html](../../Core/Source/Desktop/renderer/index.html)。[core-controls試験](../../Core/Tests/core-controls.test.mjs)、[button-layout試験](../../Core/Tests/button-layout.test.mjs) | 補助画面8キー到達・キー配色/無効形状試験済。通常面の全操作到達は未確認。[同期](../Contracts/PROJECT_SYNC.md): planned。BPM・配置・カバー・マットキー全状態はChromium確認。icon: Mac確認のみ。[artwork試験](../../Core/Tests/artwork.test.mjs)で不在・破損・切替競合を確認。 |
+| R-008 | implemented。[encoders.mjs](../../Core/Source/ControlSurface/encoders.mjs)、[waveform.mjs](../../Core/Source/ControlSurface/waveform.mjs)、[elements.mjs](../../Plugins/Skins/elements.mjs)。[waveform-ui試験](../../Core/Tests/waveform-ui.test.mjs)、[player-knobs試験](../../Core/Tests/player-knobs.test.mjs) | 実測波形・実音確認。monitor/保存mix分離。[ノブ試験](../../Core/Tests/encoder-assignments.test.mjs): busy中停止可。 |
 | R-009 | partial。[layout-customization.mjs](../../Core/Source/ControlSurface/layout-customization.mjs)、[index.mjs](../../Plugins/Skins/index.mjs)。[button-layout試験](../../Core/Tests/button-layout.test.mjs)、[surface-runtime試験](../../Core/Tests/surface-runtime.test.mjs) | deck/transport交換・注入は可。任意skin導入は未実装。自由配置の8キー到達・隣接は未保証。 |
 | R-010 | partial。[index.mjs](../../Plugins/Controllers/index.mjs)、各機種module。[controllers試験](../../Core/Tests/controllers.test.mjs)、[hardware-profile試験](../../Core/Tests/hardware-profile.test.mjs) | Stream Deck／Ulanziはbridge未実装。Push／Launch ControlはMIDI Learn。機種固有ネイティブ統合・実機検証済みとは報告しない。 |
-| R-011 | partial。[engine-contracts.ts](../../Core/Source/Contracts/engine-contracts.ts)、[application-contract.ts](../../Core/Source/Contracts/application-contract.ts)、[workspace.ts](../../Core/Source/Contracts/workspace.ts)。[engine-port試験](../../Core/Tests/engine-port.test.mjs)、[application-port試験](../../Core/Tests/application-port.test.mjs)、[workspace-port試験](../../Core/Tests/workspace-port.test.mjs) | 各portのfake交換あり。Application/service等にはcatalog・asset・render jobの具象I/Oが残る。ApplicationPortのtool schemaはZod型にも依存する。全層の純粋化・schema library独立は未完。 |
-| R-012 | implemented。[StarterPlugins](../../Core/Source/StarterPlugins)、[plugin-packages.ts](../../Core/Source/Adapters/node/engine/plugin-packages.ts)。[starter試験](../../Core/Tests/starter.test.mjs)、[plugin-packages試験](../../Core/Tests/plugin-packages.test.mjs) | scan、load、state復元、renderを分ける。バイナリ・資産移動後は導入先から実音確認する。 |
+| R-011 | partial。[engine-contracts.ts](../../Core/Source/Contracts/engine-contracts.ts)、[application-contract.ts](../../Core/Source/Contracts/application-contract.ts)、[workspace.ts](../../Core/Source/Contracts/workspace.ts)。[engine-port試験](../../Core/Tests/engine-port.test.mjs)、[application-port試験](../../Core/Tests/application-port.test.mjs)、[workspace-port試験](../../Core/Tests/workspace-port.test.mjs) | 各portのfake交換あり。具象I/OとZod依存が残る。[初版番号検証](../../Core/Tests/release-version.test.mjs)でcore/engine/skin/controller/chainの0.0.1を確認。 |
+| R-012 | implemented。[starter試験](../../Core/Tests/starter.test.mjs)、[DSP数値試験](../../Core/Tests/effect-dsp.test.mjs)、[package試験](../../Core/Tests/plugin-packages.test.mjs) | 44.1/48/96kHz DSP、Enhancer参照差<0.2dB、全帯域M/S、chain0.0.1/macOS VST3保存復元・render・導入を確認。Windows/Linux実機・聴感評価は未実施。 |
 | R-013 | partial。[version.ts](../../Core/Source/Contracts/version.ts)、[application-contract.ts](../../Core/Source/Contracts/application-contract.ts)、[engine-contracts.ts](../../Core/Source/Contracts/engine-contracts.ts)。[contracts試験](../../Core/Tests/contracts.test.mjs)、[application-port試験](../../Core/Tests/application-port.test.mjs) | 非互換拒否・converter registryあり。作品／ZIP読込との統合は未完。音源状態を推測変換しない。 |
 | R-014 | implemented。[processing-queue.ts](../../Core/Source/Adapters/node/runtime/processing-queue.ts)、[audio-lane.ts](../../Core/Source/Adapters/node/runtime/audio-lane.ts)、[http-server.ts](../../Core/Source/Adapters/http/http-server.ts)。[queue試験](../../Core/Tests/queue.test.mjs)、[nonblocking試験](../../Core/Tests/nonblocking.test.mjs)、[http試験](../../Core/Tests/http.test.mjs) | 別process・取消・停止PID・再生中取得を検証。複数曲を並列化しない。 |
 | R-015 | implemented。[分離処理](../../Core/Source/Application/separation.ts)、[試験](../../Core/Tests/separation.test.mjs)。 | macOS ARM64で実Spleeterの4stem生成を確認。音質聴取評価・Windows実機は未確認。 |
@@ -27,7 +27,7 @@
 
 ## 最小実行
 
-以下はrepository rootから実行する。まず新しいsourceをbuildする。失敗後に以前のJSを実行して成功扱いにしない。
+repository rootで新しいsourceをbuildする。失敗後に以前のJSを実行して成功扱いにしない。
 
 ```sh
 npm --prefix Core run build
@@ -75,8 +75,22 @@ GUI変更はChromium試験に加え `npm --prefix Core run player` で常駐サ�
 
 ## 結果記録
 
-一時ログは `Core/Build/Verification/`。PR／変更報告には対象ID、source revisionまたは差分、command、OS/arch、engine/device/plugin版、実際の成功/失敗/skip、実音/GUI確認範囲、残件と再試験条件を残す。個人作品や録音をGitへ追加しない。
+ログは `Core/Build/Verification/`。変更報告に対象ID・差分・command・OS/arch・版・成功/失敗/skip・実音/GUI確認範囲・残件を記す。個人作品・録音はGit除外。
 
-原因不明の失敗を期待値変更やskipで隠さない。状態は上表、仕様は所有文書へ。ログを仕様正本にしない。
+失敗を期待値変更やskipで隠さない。
 
-セットアップ補足（2026-09-14）: 対応OSはWindows 11・macOS・Linux（未検証）。setup/配置の回帰8件、shell構文、macOS依存確認を通過。Linuxのビルド・音声・GUIとWindows 11実機の再検証は今回未実施。Antigravity生成設定からstdio接続・system_capabilities成功、アプリ内有効化はRefresh待ち。Demucs 4.0.1/HTDemucsは外部取得・モデルロード・hash記録を確認し、実音分離の評価は未実施。
+setup回帰8件成功（macOS）。Antigravity単独MCP接続済・Refresh待ち。Demucs4/HTDemucs導入・ロード済、実音未評価。Windows/Linux実機未検証。
+
+カタログ貢献: 準備・受入・検索を実装。対象11件成功。実データ送信・PR作成は未実施。
+
+working-mix通過。実音・電力は未検証。
+
+Gain/FX: chain/DSP/package 6件・MCP等9件pass。
+
+A/B: Chromium/ミュート実機で波形・同session切替を確認。native 5ms crossfade/PCM入替、非選択版循環・先頭位置・DOM維持試験成功。実聴未評価。
+
+設定/音声出力2件pass。生成済み版読込・生成禁止・形式変換14pass/再生1skip。
+
+Stem波形/版API確認。方式往復12pass/1skip、Demucs実推論済。ファイル取込/送信7試験pass。
+
+DECK: Mac起動pass。Mac ZIP・Win DECK生成、5試験pass。Win音声ビルド/実行・Linux未検証。

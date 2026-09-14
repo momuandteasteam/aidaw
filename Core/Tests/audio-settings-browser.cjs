@@ -1,0 +1,28 @@
+const {app,BrowserWindow}=require('electron');
+const {pathToFileURL}=require('node:url');const path=require('node:path');
+(async()=>{await app.whenReady();const win=new BrowserWindow({show:false,webPreferences:{contextIsolation:true}});
+await win.loadFile(path.join(__dirname,'surface-fixture.html'));
+const url=pathToFileURL(path.resolve(__dirname,'../Source/Desktop/renderer/audio-settings.mjs')).href;
+const result=await win.webContents.executeJavaScript(`(async()=>{
+ const {setupAudioSettings}=await import(${JSON.stringify(url)});
+ document.body.innerHTML='<dialog><select></select><small></small></dialog>';
+ const dialog=document.querySelector('dialog'),select=document.querySelector('select'),status=document.querySelector('small');
+ let devices=['Built-in'],calls=0,saves=0,fail=false,release;
+ const tick=()=>new Promise(r=>setTimeout(r,20));
+ const controller=setupAudioSettings({select,dialog,status,bridge:{async api(){calls++;if(release===true)await new Promise(r=>release=r);if(fail)throw Error('offline');return {device_types:[{outputs:devices}]};},async saveAudioPreferences(){saves++;}}});
+ controller.configure({devices:['Built-in']},{output_device:'USB'});
+ const missing=select.value==='USB'&&select.selectedOptions[0].textContent.includes('未接続');
+ devices=['Built-in','USB'];dialog.showModal();await tick();
+ const connected=select.value==='USB'&&select.selectedOptions[0].textContent==='USB';
+ devices=['Built-in'];await controller.refresh();
+ const removed=select.value==='USB'&&select.selectedOptions[0].textContent.includes('未接続');
+ fail=true;await controller.refresh();const errorRetained=select.value==='USB'&&status.textContent.includes('offline');fail=false;
+ release=true;const before=calls,p=controller.refresh();controller.refresh();const coalesced=calls===before+1;
+ dialog.close();await tick();devices=['Late'];release();await p;
+ const staleIgnored=![...select.options].some(o=>o.value==='Late');release=null;
+ dialog.showModal();await tick();const reopened=[...select.options].some(o=>o.value==='Late')&&!status.textContent;
+ devices=['Polled'];await new Promise(r=>setTimeout(r,2100));const polled=[...select.options].some(o=>o.value==='Polled');
+ const defaultPresent=select.options[0].value==='';controller.dispose();const count=calls;window.dispatchEvent(new Event('focus'));await tick();
+ return {missing,connected,removed,errorRetained,coalesced,staleIgnored,reopened,polled,defaultPresent,noSaves:saves===0,disposed:calls===count};
+})()`);
+console.log('AUDIO_SETTINGS_RESULT '+JSON.stringify(result));app.quit();})().catch(e=>{console.error(e);app.exit(1);});

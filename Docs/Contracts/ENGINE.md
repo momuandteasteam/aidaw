@@ -1,8 +1,12 @@
-# 音声実行とengine交換
+# AIDAW Audio Engine・音声実行契約
 
 読む条件: render、再生、DSP、plugin parameter、audio queue、engine driverを変更するとき。
 正本範囲: EnginePort/AudioPlanの意味、音声処理の排他と再現条件。
 関連要件: R-008, R-011, R-012, R-013, R-014。
+
+Design status: ready
+
+正式名称は **AIDAW Audio Engine**。命名は[SYSTEM_VERSIONS](SYSTEM_VERSIONS.md)に従う。
 
 ## portと版
 
@@ -10,7 +14,7 @@ EnginePortはdescribe、render、startPlayback、分析、plugin探索/検査等
 
 describeのengine/adapter ID・version、contract major/minor、content_fingerprint、features、sample_rates、plugin_formatsを使う。現行facadeはcontract major 1と操作ごとのfeatureを確認し、未対応なら失敗する。アプリpackage版と契約版を同一視しない。メーカー固有のpreset操作は宣言された型付き機能であり、別製品・別版へ名前から推測適用しない。
 
-JuceFileDriverだけがnative command、worker、status/control file、JUCE bindingを扱う。別driverが同じportを実装してもapplicationの作品正本を変更しない。現在のnative版対応はdriverの宣言を確認し、未宣言版を互換と判断しない。
+JuceFileDriverだけがnative command、worker、status/control file、JUCE bindingを扱う。別driverが同じportを実装してもapplicationの作品正本を変更しない。native版対応はdriverの宣言を確認し、未宣言版を互換と判断しない。
 
 ## AudioPlan
 

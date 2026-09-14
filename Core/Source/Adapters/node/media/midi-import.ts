@@ -37,5 +37,5 @@ export async function inspectMidi(path:string){return parseMidi(await readFile(p
 export async function importMidi(service:Service,a:any){const midi=await inspectMidi(a.path);if(midi.unsupported.length&&!a.notes_only)throw new Error(`MIDI contains unsupported events: ${midi.unsupported.join(', ')}. Explicit notes_only is required to omit them.`);
  const operations:Operation[]=[];if(a.adopt_tempo){operations.push({op:'set_bpm',bpm:midi.bpm});operations.push({op:'set_timing',length_ticks:midi.length_ticks,meter:midi.meter});}
  for(const mapping of a.tracks){const part=midi.tracks.find(t=>t.index===mapping.track_index);if(!part)throw new Error('Unknown MIDI track index');operations.push({op:'add_track',track:track.parse({id:mapping.track_id,name:mapping.name??part.name,instrument:mapping.instrument,notes:part.notes})});}
- const result=await service.apply({project_id:a.project_id,base_revision:a.base_revision,request_id:a.request_id,operations});return {...result,omitted_events:midi.unsupported};
+ const result=await service.apply({project_id:a.project_id,base_revision:a.base_revision,request_id:a.request_id,operations,working_copy:a.working_copy});return {...result,omitted_events:midi.unsupported};
 }

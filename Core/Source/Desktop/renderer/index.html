@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:">
-  <title>AIDAW</title><link rel="stylesheet" href="styles.css">
+  <title>AIDAW DECK</title><link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <main class="shell">
-  <header class="window-bar"><span class="app-name">AIDAW</span><span id="kindBadge" hidden class="live-badge">COMPOSITION</span></header>
+  <header class="window-bar"><span class="app-name">AIDAW DECK</span><span id="kindBadge" hidden class="live-badge">COMPOSITION</span></header>
   <section class="workspace">
     <nav class="project-toolbar" aria-label="アプリ操作">
       <button id="fileMenuButton" class="menu-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="fileMenu">ファイル<span class="menu-chevron" aria-hidden="true"></span></button>
@@ -16,9 +16,11 @@
       <button id="settingsButton" class="menu-button" type="button" aria-haspopup="dialog" aria-controls="settingsDialog">設定</button>
       <div id="fileMenu" class="file-menu" role="menu" aria-label="ファイル" hidden>
         <button type="button" role="menuitem" tabindex="-1" data-command="create">新規プロジェクト…</button>
-        <button type="button" role="menuitem" tabindex="-1" data-command="openWorkspace">プロジェクトを開く…</button>
-        <button type="button" role="menuitem" tabindex="-1" data-command="projectList">プロジェクト一覧…</button>
-        <button type="button" role="menuitem" tabindex="-1" data-command="separation" data-needs-project>ステム分離・ダウンロード…</button>
+        <button type="button" role="menuitem" tabindex="-1" data-command="projectList">プロジェクトを開く…</button>
+        <button type="button" role="menuitem" tabindex="-1" data-command="separation" data-needs-project>ステム分離・書き出し…</button>
+        <button type="button" role="menuitem" tabindex="-1" data-command="importAudio" data-needs-project>ファイルをインポート…</button>
+        <button type="button" role="menuitem" tabindex="-1" data-command="sendSeparation" data-needs-project>ステム分離へ送る…</button>
+        <button type="button" role="menuitem" tabindex="-1" data-command="sendMastering" data-needs-project>マスタリングへ送る…</button>
         <hr role="separator">
         <button type="button" role="menuitem" tabindex="-1" data-command="openFile">プロジェクトをインポート…<small>.aidaw.zip</small></button>
         <button type="button" role="menuitem" tabindex="-1" data-command="save" data-needs-project>プロジェクトをエクスポート…<small>.aidaw.zip</small></button>
@@ -40,28 +42,17 @@
 <label>mixの形式<select id="separationFormat"><option value="wav">WAV</option><option value="mp3">MP3</option><option value="flac">FLAC</option></select></label>
 <button id="separationZip" type="button" data-separation-action>全ステムZIPを保存</button><button id="separationMix" type="button" data-separation-action>選択mixを保存</button>
 </dialog>
-<dialog id="settingsDialog" aria-labelledby="settingsTitle"><div class="settings-heading"><h2 id="settingsTitle">設定</h2><button id="settingsClose" type="button" aria-label="設定を閉じる">閉じる</button></div>
-<section class="settings-section"><h3>音声出力</h3><label>出力デバイス<select id="device" aria-label="音声出力デバイス"></select></label></section>
-<section class="settings-section"><h3>表示</h3><label>操作画面<select id="skinSelect"></select></label></section>
-
-<section class="settings-section"><h3>機器・MIDI</h3>
-<label>機種<select id="controllerProfile"><option value="">使用しない</option></select></label>
-<p id="controllerStatus"></p>
-<button id="connectMidi" type="button">MIDI入力を検出</button>
-<label>MIDI入力<select id="midiInput"><option value="">未接続</option></select></label>
-<label>割り当て先<select id="learnTarget"></select></label>
-<label>エンコーダー方式<select id="encoderMode"><option value="relative-twos-complement">相対値（2の補数）</option><option value="relative-binary-offset">相対値（64中心）</option><option value="absolute">絶対値（0–127）</option><option value="press">押し込み</option></select></label>
-<button id="learnMidi" type="button">MIDI Learn</button><button id="clearMidi" type="button">割り当てをクリア</button><p id="midiStatus" role="status"></p>
-</section>
-    <details id="inspectorDisclosure"><summary>詳細・診断</summary><section class="inspector"><h3 id="inspectorTitle">選択内容</h3><div id="inspector"></div></section><div class="statusbar"><span id="latency">LATENCY —</span><span id="xruns">XRUN —</span><span>48 kHz / STEREO</span></div></details>
+<dialog id="settingsDialog" aria-labelledby="settingsTitle"><div class="settings-heading"><h2 id="settingsTitle">設定</h2><button id="versionButton" type="button" aria-label="バージョン一覧" aria-haspopup="dialog"></button><button id="settingsClose" type="button" aria-label="設定を閉じる">閉じる</button></div>
+<section class="settings-section"><label>音声出力<select id="device" aria-label="音声出力デバイス"></select></label><small id="audioDeviceStatus" role="status"></small></section>
 </dialog>
+<dialog id="versionsDialog" aria-labelledby="versionsTitle"><div class="settings-heading"><h2 id="versionsTitle">バージョン</h2><button id="versionsClose" type="button">閉じる</button></div><p id="versionsStatus" role="status"></p><div id="versionsList"></div></dialog>
 <dialog id="assignmentDialog" aria-labelledby="assignmentTitle"><div class="settings-heading"><h2 id="assignmentTitle">割り当て</h2><button id="assignmentClose" type="button">閉じる</button></div>
 <section class="settings-section"><h3>ボタン・エンコーダの割り当て</h3>
 <label>対象<select id="layoutMode"><option value="composition:listen">曲制作</option><option value="mastering:listen">マスタリング</option></select></label>
 <div id="layoutGrid" aria-label="15キーの配置"></div>
 <label>ボタン一覧<select id="layoutAction"></select></label><button id="layoutApply" type="button">選択位置に配置</button><div id="encoderAssignments" aria-label="4エンコーダの割り当て"></div><button id="layoutSave" type="button">割り当てを保存</button><button id="layoutReset" type="button">既定に戻す</button><p id="layoutMessage" role="status">配置する位置を選んでください。</p></section>
 </dialog>
-<dialog id="projectListDialog" aria-labelledby="projectListTitle"><div class="settings-heading"><h2 id="projectListTitle">プロジェクト一覧</h2><button id="projectListClose" type="button">閉じる</button></div>
+<dialog id="projectListDialog" aria-labelledby="projectListTitle"><div class="settings-heading"><h2 id="projectListTitle">プロジェクトを開く</h2><button id="projectListClose" type="button">閉じる</button></div>
 <div class="project-list-toolbar"><button id="projectListRefresh" type="button">一覧を更新</button></div><p id="projectListStatus" role="status"></p><div id="projectListItems"></div>
 </dialog>
 <dialog id="editor"><form id="editorForm"><h2 id="editorTitle"></h2><div id="editorFields"></div><p id="editorError" class="message"></p><div class="form-actions"><button type="button" id="editorCancel">戻る</button><button type="submit" id="editorSubmit">実行</button></div></form></dialog>

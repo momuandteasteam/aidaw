@@ -44,11 +44,11 @@ test('EQ boosts sub bass and cuts low mids in actual rendered samples',async t=>
  await api('project_apply',{project_id:'song',base_revision:3,request_id:'cut',operations:[{op:'set_master_effects',effects:[{...eq.s,parameters:[eq.param('Mid bell dB',12/36)]}]}]});
  const cut=await render(api,service,0);assert.ok(await rms(cut.output)/await rms(midDry.output)<0.55);
 });
-test('limiter links stereo, enforces sample ceiling and compensates five ms latency',async t=>{
+test('oversampled limiter enforces sample ceiling and compensates its reported latency',async t=>{
  const {api,service}=await fixture(t);const lim=await plugin(api,'Limiter');await seed(api,{...track,gain_db:0,notes:[{id:'tone',tick:0,duration:3840,pitch:69,velocity:100}]});
  const dry=await render(api,service,0);
  await api('project_apply',{project_id:'song',base_revision:1,request_id:'unity',operations:[{op:'set_master_effects',effects:[lim.s]}]});
- const unity=await render(api,service,0);assert.equal(unity.sha256,dry.sha256);assert.equal(unity.latency_compensation.trimmed_samples,240);
+ const unity=await render(api,service,0);const dryWave=await wave(dry.output),wetWave=await wave(unity.output);let error=0,count=0;for(let i=4096;i<dryWave.samples.length-4096;i++){error+=(dryWave.samples[i]-wetWave.samples[i])**2;count++;}assert.ok(Math.sqrt(error/count)<.001,'Transparent below threshold after latency compensation');assert.ok(unity.latency_compensation.trimmed_samples>240&&unity.latency_compensation.trimmed_samples<1000);
  await api('project_apply',{project_id:'song',base_revision:2,request_id:'drive',operations:[{op:'set_master_effects',effects:[{...lim.s,parameters:[lim.param('Drive dB',1),lim.param('Ceiling dBFS',9/12)]}]}]});
  const loud=await render(api,service,0);assert.ok(loud.analysis.sample_peak<=Math.pow(10,-3/20)+1e-6);assert.ok(loud.analysis.sample_peak>0.6);
 });
@@ -61,4 +61,24 @@ test('100% wet reverb contains a stereo decay and no immediate dry signal',async
  const b=w.bytes;let data;for(let i=12;i+8<=b.length;){const n=b.readUInt32LE(i+4);if(b.toString('ascii',i,i+4)==='data')data=b.subarray(i+8,i+8+n);i+=8+n+(n%2);}
  let side=0;for(let i=0;i<data.length;i+=6)side+=Math.abs(data.readIntLE(i,3)-data.readIntLE(i+3,3));assert.ok(side>10000);
  assert.ok(w.samples.slice(-4800).every(x=>Math.abs(x)<1e-4));
+});
+
+test('eight-band EQ and new effects expose stable parameters, restore state and render',async t=>{
+ const {api,service}=await fixture(t),eq=await plugin(api,'EQ'),ex=await plugin(api,'Enhancer'),im=await plugin(api,'Imager');
+ assert.equal(eq.info.parameters.filter(p=>p.name!=='Bypass').length,22);for(let band=3;band<=7;band++)assert.ok(eq.info.parameters.some(p=>p.name==='Band '+band+' Q'));
+ await seed(api,{...track,gain_db:-6});
+ await api('project_apply',{project_id:'song',base_revision:1,request_id:'new-fx',operations:[{op:'set_master_effects',effects:[{...eq.s,parameters:[eq.param('Band 3 dB',.6)]},{...ex.s,parameters:[ex.param('Process',.2),ex.param('Low contour',.11)]},{...im.s,parameters:[im.param('Width',.75),im.param('Bass width',0)]}]}]});
+ const a=await render(api,service,0),b=await render(api,service,0);assert.equal(a.sha256,b.sha256);assert.ok(a.analysis.sample_peak>.001);
+ const saved=(await service.read('song')).master_effects;for(const [i,spec]of saved.entries()){assert.ok(spec.state_base64);assert.equal(spec.plugin_version,'0.0.1');}
+ const restored=await api('plugin_inspect',{plugin:saved[1]});assert.ok(Math.abs(restored.parameters.find(p=>p.name==='Process').value-.2)<1e-5);
+});
+
+test('BassMono is a dedicated zero-latency effect with restorable controls',async t=>{
+ const {api,service}=await fixture(t),bm=await plugin(api,'BassMono');
+ assert.equal(bm.info.parameters.filter(p=>p.name!=='Bypass').length,2);
+ await seed(api,{...track,gain_db:-6});
+ await api('project_apply',{project_id:'song',base_revision:1,request_id:'bass-mono',operations:[{op:'set_master_effects',effects:[{...bm.s,parameters:[bm.param('Mono cutoff Hz',.375),bm.param('Mono amount',.8)]}]}]});
+ const first=await render(api,service,0),again=await render(api,service,0);assert.equal(first.sha256,again.sha256);assert.equal(first.latency_compensation.trimmed_samples,0);assert.ok(first.analysis.sample_peak>.001);
+ const saved=(await service.read('song')).master_effects[0];assert.equal(saved.plugin_version,'0.0.1');assert.ok(saved.state_base64);
+ const restored=await api('plugin_inspect',{plugin:saved});for(const [name,value] of [['Mono cutoff Hz',.375],['Mono amount',.8]])assert.ok(Math.abs(restored.parameters.find(p=>p.name===name).value-value)<1e-5);
 });

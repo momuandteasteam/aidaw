@@ -1,3 +1,8 @@
+import {prepareStemPlayback,stemMixChanges,type StemPlayback} from './separation-playback.js';
+import {DemucsSeparator} from '../Adapters/node/media/demucs.js';
+import {startMasteringPreparation} from './mastering-prerender.js';
+import {loadExistingComparison,comparisonIdentity,completedVersionAudio} from './mastering-preview.js';
+import {guardWorkingMix} from '../Adapters/node/workspace/working-mix.js';
 import type {SeparationPort} from '../Contracts/separation.js';
 import {SpleeterSeparator} from '../Adapters/node/media/spleeter.js';
 import {contributionTip} from '../Contracts/contribution.js';
@@ -32,7 +37,7 @@ interface Preset { id: string; name: string; tags: string[]; plugin_id: string; 
 interface Catalog { plugins: CatalogPlugin[]; presets: Preset[] }
 type JobState = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 interface Job { scope:'project'|'track'; track_id?:string; id: string; project_id: string; revision: number; state: JobState; owner_pid: number; output?: string; sha256?: string; analysis?: unknown; latency_compensation?: unknown; render_graph?:any[]; mixer?:any; insert_prints?:Record<string,string>; premaster?:string; instrument_prints?:Record<string,string>; stems?: Record<string, { output: string; analysis: any; latency_compensation: any; automation?: any }>; error?: string }
-interface Playback {track_ids?:Set<string>;bus_ids?:Set<string>;kind?:'composition'|'mastering'|'separation';target?:{song_id?:string;version_id?:string;comparison?:'a'|'b';source_asset_id?:string;tail_seconds?:number;selection?:{kind:'source'|'version';version_id?:string;source_asset_id?:string}};id:string;project_id:string;revision:number;state:'queued'|'starting'|'playing'|'paused'|'stopped'|'completed'|'failed'|'cancelled';owner_pid:number;created_at:string;jobPath:string;controller:AbortController;worker?:PlaybackSession;done:Promise<void>;error?:string }
+interface Playback {stems?:StemPlayback;prepared?:{paths:string[];identities:string[];slot:number};request?:any;track_ids?:Set<string>;bus_ids?:Set<string>;kind?:'composition'|'mastering'|'separation';target?:{song_id?:string;version_id?:string;comparison?:'a'|'b';source_asset_id?:string;tail_seconds?:number;selection?:{kind:'source'|'version';version_id?:string;source_asset_id?:string}};id:string;project_id:string;revision:number;state:'queued'|'starting'|'playing'|'paused'|'stopped'|'completed'|'failed'|'cancelled';owner_pid:number;created_at:string;jobPath:string;controller:AbortController;worker?:PlaybackSession;done:Promise<void>;error?:string }
 const fingerprint = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).digest('hex');
 export class Service {
   readonly processing:ProcessingQueue;
@@ -41,14 +46,16 @@ export class Service {
   readonly workspace: WorkspacePort<ReturnType<typeof parseDocument>>;
   readonly engine: EnginePort;
   readonly separator:SeparationPort;
+  readonly separators:Record<string,SeparationPort>;
   private jobs = new Map<string, { controller: AbortController; done: Promise<void> }>();
   private playback?:Playback;
   private playbackStarting = false;
   private renderReservations = 0;
-  constructor(root = process.env.AIDAW_HOME ?? defaultWorkspaceRoot(), engine:EnginePort = new Engine(undefined,{home:root}), options:{workspace?:WorkspacePort<ReturnType<typeof parseDocument>>;separator?:SeparationPort}={}) { this.root = resolve(root); this.separator=options.separator??new SpleeterSeparator(this.root); this.paths=options.workspace?homePaths(this.root):initializeHome(this.root); this.workspace=options.workspace??new NodeWorkspace(this.root); this.processing=new ProcessingQueue(this.root); this.engine = withAudioQueue(engine,this.processing); }
+  constructor(root = process.env.AIDAW_HOME ?? defaultWorkspaceRoot(), engine:EnginePort = new Engine(undefined,{home:root}), options:{workspace?:WorkspacePort<ReturnType<typeof parseDocument>>;separator?:SeparationPort;separators?:Record<string,SeparationPort>}={}) { this.root = resolve(root); this.separator=options.separator??new SpleeterSeparator(this.root);this.separators={spleeter:new SpleeterSeparator(this.root),demucs:new DemucsSeparator(this.root),[this.separator.id]:this.separator,...options.separators}; this.paths=options.workspace?homePaths(this.root):initializeHome(this.root); this.workspace=options.workspace??new NodeWorkspace(this.root); this.processing=new ProcessingQueue(this.root); this.engine = withAudioQueue(engine,this.processing); }
   dir(projectId: string) { return join(this.paths.projects, id.parse(projectId)); }
   async readDocument(projectId:string) { return this.workspace.read(projectId); }
   async activeContext() { return getActiveContext(this); }
+  async prepareMastering(projectId:string) { return startMasteringPreparation(this,projectId); }
   async selectActiveContext(selection: z.infer<typeof activeContextInput>) { return setActiveContext(this, selection); }
   async compileGraph(projectId:string, selection:{revision?:number;song_id?:string;version_id?:string;comparison?:'a'|'b'}={}) {
     const doc = selection.revision === undefined ? await this.readDocument(projectId) : await this.workspace.readRevision(projectId,selection.revision);
@@ -183,7 +190,7 @@ export class Service {
     for (const bus of p.buses)for(const fx of bus.effects)await freeze(fx);
     for (const fx of p.master_effects) await freeze(fx);
   }
-  async apply(args: { project_id: string; base_revision: number; request_id: string; operations: any[];summary?:string }) {
+  async apply(args: { project_id: string; base_revision: number; request_id: string; operations: any[];summary?:string;working_copy?:{action:'keep';token:string} }) {
     return this.change(args.project_id,args.base_revision,args.request_id,args,async p=>{
       for(const op of args.operations){
         const choice=op.op==='add_track'?op.track.instrument:op.op==='set_track'?op.changes.instrument:undefined;
@@ -218,10 +225,13 @@ export class Service {
   }
   private async change(projectId:string,base:number,requestId:string,payload:any,mutate:(p:ReturnType<typeof parseDocument>)=>ReturnType<typeof parseDocument>|Promise<ReturnType<typeof parseDocument>>) {
     id.parse(requestId);
-    return this.workspace.change({projectId,baseRevision:base,requestId,fingerprint:fingerprint(payload),summary:payload.summary,restoreRevision:payload.restore_revision},async(current,context)=>{
+    const result=await this.workspace.change({projectId,baseRevision:base,requestId,fingerprint:fingerprint(payload),summary:payload.summary,restoreRevision:payload.restore_revision},async(current,context)=>{
+      if(!payload.working_mix_resolution)await guardWorkingMix(this,projectId,payload.working_copy);
       let next=parseDocument(await mutate(structuredClone(current)));next.revision=base+1;
       return this.freezeDocument(next,current,context.workDirectory);
     });
+    // Saving is authoritative even when optional preview scheduling fails.
+    try{return {...result,preparation:await this.prepareMastering(projectId)};}catch(error){return {...result,preparation:{state:'failed',error:String(error)}};}
   }
 
   async restore(args:{project_id:string;base_revision:number;request_id:string;revision:number}) {
@@ -236,7 +246,7 @@ export class Service {
     // Generated timestamp is created inside the mutation, not the retry fingerprint.
     return this.change(args.project_id,args.base_revision,args.request_id,args,p=>applyDocumentOperations(p,[{op:'add_song',song:{id:args.song_id,name:args.name,versions:[version],current_version_id:version.id,comparison:{a:{kind:'version',version_id:version.id},b:{kind:'version',version_id:version.id}}}}]));
   }
-  async createMasteringVersion(args:{project_id:string;base_revision:number;request_id:string;song_id:string;parent_version_id:string;label:string;effects?:Plugin[];input_gain_db?:number}) {
+  async createMasteringVersion(args:{project_id:string;base_revision:number;request_id:string;song_id:string;parent_version_id:string;label:string;effects?:Plugin[];input_gain_db?:number;summary?:string}) {
     return this.change(args.project_id,args.base_revision,args.request_id,args,p=>{
       if(!('kind' in p)||p.kind!=='mastering')throw new Error('Not a mastering project');
       const song=p.mastering.songs.find(s=>s.id===args.song_id),parent=song?.versions.find(v=>v.id===args.parent_version_id);if(!parent)throw new Error('Unknown mastering parent version');
@@ -304,7 +314,77 @@ export class Service {
     this.jobs.set(job.id, { controller, done }); return { job_id: job.id, revision: job.revision, state: job.state };
     } finally { --this.renderReservations; }
   }
-  async startPlayback(args:{project_id:string;start_frame:string;tail_seconds?:number;loop:boolean;loop_start_frame:string;loop_end_frame:string;output_device?:string;monitor_gain_db?:number;revision?:number;song_id?:string;version_id?:string;comparison?:'a'|'b'}){
+  readonly comparisonAudio=new Map<string,{path:string;hash:string}>();
+  private comparisonSwitch=false;
+  private playbackEpoch=0;
+  async cycleComparison(a:{project_id:string;song_id:string;slot:'a'|'b';base_revision:number;request_id:string}) {
+    const document:any=await this.readDocument(a.project_id);const currentSong=document.mastering?.songs.find((s:any)=>s.id===a.song_id);
+    if(document.revision===a.base_revision&&currentSong?.versions.length===1&&currentSong.comparison[a.slot].kind==='version')return {project_id:a.project_id,revision:document.revision,selection:currentSong.comparison[a.slot],unchanged:true};
+    const result=await this.workspace.change({projectId:a.project_id,baseRevision:a.base_revision,requestId:a.request_id,fingerprint:fingerprint(a),summary:'Cycle comparison '+a.slot},async current=>{
+      if(current.schema_version!==3||current.kind!=='mastering')throw Error('Not a mastering project');
+      const song=current.mastering.songs.find(s=>s.id===a.song_id);if(!song)throw Error('Unknown song');
+      const selected=song.comparison[a.slot],index=selected.kind==='version'?song.versions.findIndex(v=>v.id===selected.version_id):-1;
+      const next=song.versions[(index+1)%song.versions.length];
+      return parseDocument({...applyDocumentOperations(current,[{op:'set_comparison',song_id:song.id,slot:a.slot,selection:{kind:'version',version_id:next.id}}]),revision:a.base_revision+1});
+    });
+    const doc:any=await this.workspace.readRevision(a.project_id,result.revision);
+    return {...result,selection:doc.mastering.songs.find((s:any)=>s.id===a.song_id).comparison[a.slot]};
+  }
+  async switchSeparationPlayback(a:{project_id:string;playback_id:string;engine:string;base_revision:number;request_id:string}) {
+    const session=this.playback;
+    if(!session||session.id!==a.playback_id||session.project_id!==a.project_id||!session.stems?.bindings[a.engine]||!session.worker)throw Error('Separation playback target is not prepared');
+    const status=await this.playbackStatus(session.id);if(!['playing','paused'].includes(status.state))throw Error('Separation playback is not ready');
+    if(this.comparisonSwitch)throw Error('A switch is in progress');this.comparisonSwitch=true;
+    try{
+      const result=await this.workspace.change({projectId:a.project_id,baseRevision:a.base_revision,requestId:a.request_id,fingerprint:fingerprint(a),summary:'Switch separation audition'},async current=>{
+        if(current.schema_version!==3||current.kind!=='separation'||session.revision!==current.revision)throw Error('Separation revision conflict');
+        const variant=current.separation.variants[a.engine];if(!variant||variant.source_asset_id!==current.separation.source_asset_id)throw Error('Missing separation variant');
+        const variants={...current.separation.variants,[current.separation.engine!]:{source_asset_id:current.separation.source_asset_id!,engine:current.separation.engine!,model:current.separation.model!,job_id:current.separation.job_id!,graph:current.composition}};
+        const tracks=variant.graph.tracks.map(t=>{const old=current.composition.tracks.find(o=>o.id===t.id)!;return {...t,mute:old.mute,solo:old.solo,gain_db:old.gain_db,pan:old.pan};});
+        return parseDocument({...current,revision:current.revision+1,composition:{...variant.graph,tracks},separation:{...current.separation,engine:a.engine,model:variant.model,job_id:variant.job_id,variants}});
+      });
+      const next={...session.stems,engine:a.engine};await session.worker.control({action:'set_mix',changes:stemMixChanges(next)});session.stems=next;session.revision=result.revision;
+      return this.playbackStatus(session.id);
+    }finally{this.comparisonSwitch=false;}
+  }
+  async switchMasteringPlayback(a:{playback_id:string;project_id:string;song_id:string;comparison:'a'|'b';revision:number}) {
+    if(this.comparisonSwitch)throw Error('Comparison switch already in progress');
+    const old=this.playback;if(!old||old.id!==a.playback_id||old.project_id!==a.project_id||old.target?.song_id!==a.song_id||old.kind!=='mastering')throw Error('Comparison playback target mismatch');
+    this.comparisonSwitch=true;const epoch=++this.playbackEpoch;
+    try {
+      const doc:any=await this.workspace.readRevision(a.project_id,a.revision),selected=resolveMasteringTarget(doc,a);
+      const before=await this.playbackStatus(old.id);if(!['playing','paused'].includes(before.state))throw Error('Comparison playback is not ready');
+      const identity=comparisonIdentity(doc,a),foundIndex=old.prepared?.identities.indexOf(identity)??-1;let preparedIndex=foundIndex;
+      if(preparedIndex<0&&old.prepared&&old.worker&&(await this.engine.describe()).features.includes("playback.replace_comparison.v1")){
+        const cached=await completedVersionAudio(this,doc,a);if(!cached)throw Error("音声の事前準備が必要です。現在の再生は維持しています。");
+        if(epoch!==this.playbackEpoch)throw Error("Comparison switch cancelled");
+        preparedIndex=1-old.prepared.slot;
+        await old.worker.control({action:"replace_comparison",slot:preparedIndex,path:cached.path});
+        old.prepared.identities[preparedIndex]=identity;old.prepared.paths[preparedIndex]=cached.path;
+      }
+      if(preparedIndex>=0&&old.worker){
+        if(foundIndex>=0)await old.worker.control({action:'select_comparison',slot:preparedIndex});
+        old.prepared!.slot=preparedIndex;
+        if(epoch!==this.playbackEpoch)throw Error('Comparison switch cancelled');
+        old.target={song_id:a.song_id,version_id:selected.version.id,comparison:a.comparison,source_asset_id:selected.version.source_asset_id,selection:{...selected.selection,version_id:selected.version.id},tail_seconds:selected.selection.kind==='source'?0:selected.version.tail_seconds};old.revision=a.revision;old.request={...old.request,...a,version_id:undefined};
+        const status=await this.playbackStatus(old.id);return {...status,start_frame:status.switch_frame??status.position_frame};
+      }
+      const features=(await this.engine.describe()).features;if(!features.includes('playback.position_switch.v1'))throw Error('Engine does not acknowledge comparison stop positions');
+      const paused=before.state==='paused';
+      if(paused&&!features.includes('playback.initial_pause.v1'))throw Error('Engine cannot start a paused comparison');
+      const stopped=await this.controlPlayback('stop',undefined,old.id,true);
+      if(epoch!==this.playbackEpoch)throw Error('Comparison switch cancelled');
+      const end=Number(selected.version.duration_frames)+(selected.selection.kind==='source'?0:selected.version.tail_seconds*48000);
+      const frame=String(Math.max(0,Math.min(Math.max(0,end-1),Number(stopped.position_frame??before.position_frame??0))));
+      const result=await this.startPlayback({...old.request,...a,start_frame:frame,start_paused:paused,switch_epoch:epoch,version_id:undefined,monitor_gain_db:Number(stopped.monitor_gain_db??before.monitor_gain_db??old.request?.monitor_gain_db??0)});
+      const next=this.playback!;
+      while(['queued','starting'].includes(next.state)&&epoch===this.playbackEpoch)await new Promise(resolve=>setTimeout(resolve,10));
+      if(epoch!==this.playbackEpoch){if(this.playback?.id===result.playback_id)await this.controlPlayback('stop',undefined,result.playback_id,true);throw Error('Comparison switch cancelled');}
+      const status=await this.playbackStatus(result.playback_id);if(!['playing','paused'].includes(status.state))throw Error('Comparison load failed: '+(status.error??status.state));
+      return {...status,start_frame:frame};
+    } finally {this.comparisonSwitch=false;}
+  }
+  async startPlayback(args:{separation_mix?:Array<{track_id:string;mute:boolean;solo:boolean}>;start_paused?:boolean;switch_epoch?:number;project_id:string;start_frame:string;tail_seconds?:number;loop:boolean;loop_start_frame:string;loop_end_frame:string;output_device?:string;monitor_gain_db?:number;revision?:number;song_id?:string;version_id?:string;comparison?:'a'|'b'}){
     if(args.monitor_gain_db!==undefined&&(!Number.isFinite(args.monitor_gain_db)||args.monitor_gain_db< -96||args.monitor_gain_db>0))throw new Error('Monitor gain_db must be between -96 and 0');
     if(this.playbackStarting)throw new Error('Playback is already starting');
     if(this.playback&&!['stopped','completed','failed','cancelled'].includes(this.playback.state))throw new Error(`Playback already active: ${this.playback.id}`);
@@ -314,34 +394,40 @@ export class Service {
     const saved=args.revision===undefined?await this.readDocument(args.project_id):await this.workspace.readRevision(args.project_id,args.revision);
     const doc={...saved,id:args.project_id},kind=doc.schema_version===3?doc.kind:'composition';
     const selected=doc.schema_version===3&&doc.kind==='mastering'?resolveMasteringTarget(doc,args):undefined;
+    const prepared=selected&&args.comparison?await loadExistingComparison(this,doc,args):undefined;
     const tail=args.tail_seconds??(selected?(selected.selection.kind==='source'?0:selected.version.tail_seconds):2);
     const target:Playback['target']=selected?{song_id:selected.song.id,version_id:selected.version.id,comparison:args.comparison,source_asset_id:selected.version.source_asset_id,selection:{...selected.selection,version_id:selected.version.id},tail_seconds:tail}:{tail_seconds:tail};
-    const p=compileDocument(doc,args),resolved=await this.resolvedProject(p),id=randomUUID();
+    const p=compileDocument(doc,args),stems=prepareStemPlayback(doc,p,args.separation_mix),resolved=prepared?{...p,tracks:[],buses:[],master_effects:[]}:await this.resolvedProject(p),id=randomUUID();
     const job=await newJob(this.dir(p.id),{kind:'playback',project_kind:kind,project_id:p.id,revision:p.revision,...target},id);
     await atomicJson(join(job.path,'snapshots','input.json'),p);
-    const controller=new AbortController();let session:Playback={track_ids:new Set(p.tracks.map(t=>t.id)),bus_ids:new Set(p.buses.map(b=>b.id)),kind,target,id,project_id:p.id,revision:p.revision,state:'queued',owner_pid:process.pid,created_at:new Date().toISOString(),jobPath:job.path,controller,done:Promise.resolve()};
+    const controller=new AbortController();let session:Playback={stems,track_ids:new Set(p.tracks.map(t=>t.id)),bus_ids:new Set(p.buses.map(b=>b.id)),kind,target,id,project_id:p.id,revision:p.revision,state:'queued',owner_pid:process.pid,created_at:new Date().toISOString(),jobPath:job.path,controller,done:Promise.resolve()};
     const persist=()=>atomicJson(join(job.path,'status.json'),{id,kind:'playback',project_kind:kind,project_id:p.id,revision:p.revision,...target,state:session.state,owner_pid:process.pid,created_at:session.created_at,...(session.error?{error:session.error}:{})});
-    await persist();this.playback=session;
+    if(args.switch_epoch!==undefined&&args.switch_epoch!==this.playbackEpoch)throw Error('Comparison switch cancelled');
+    session.request={...args};await persist();this.playback=session;
     const done=(async()=>{
       try{await this.processing.run('playback',async()=>{
+        if(args.switch_epoch!==undefined&&args.switch_epoch!==this.playbackEpoch)throw Error('Comparison switch cancelled');
         session.state='starting';await persist();
-        session.worker=await this.engine.startPlayback({plan:audioPlan(resolved),start_frame:args.start_frame,tail_seconds:tail,loop:args.loop,loop_start_frame:args.loop_start_frame,loop_end_frame:args.loop_end_frame,output_device:args.output_device??'',monitor_gain_db:args.monitor_gain_db??0},{signal:controller.signal,workDir:join(job.path,'work')});
-        await session.worker.ready;session.state='playing';await persist();const result=await session.worker.done;session.state=result.state;await persist();
+        session.prepared=prepared;
+        session.worker=await this.engine.startPlayback({prepared_comparison:session.prepared?{paths:session.prepared.paths,slot:session.prepared.slot}:undefined,plan:audioPlan(resolved),start_frame:args.start_frame,start_paused:args.start_paused,tail_seconds:tail,loop:args.loop,loop_start_frame:args.loop_start_frame,loop_end_frame:args.loop_end_frame,output_device:args.output_device??'',monitor_gain_db:args.monitor_gain_db??0},{signal:controller.signal,workDir:join(job.path,'work')});
+        await session.worker.ready;session.state=args.start_paused?'paused':'playing';await persist();const result=await session.worker.done;session.state=result.state;await persist();
       },{id,signal:controller.signal});}
       catch(error){session.state=controller.signal.aborted?'cancelled':'failed';session.error=String(error);await persist();}
     })();
     session.done=done;void done.catch(()=>{});
-    return {playback_id:id,project_id:p.id,revision:p.revision,state:session.state,mode:'live_project_graph',...target,start_frame:args.start_frame,rendered_file_created:false};
+    return {playback_id:id,project_id:p.id,revision:p.revision,state:session.state,mode:args.comparison?'comparison':'live_project_graph',...target,start_frame:args.start_frame,rendered_file_created:args.comparison?undefined:false};
     } finally { this.playbackStarting=false; }
   }
   async playbackStatus(playbackId?:string){
     const session=this.playback;if(!session||playbackId&&session.id!==playbackId)throw new Error('Playback session not found');
     let native:any;try{native=await session.worker?.status();}catch(error:any){if(error.code!=='ENOENT')throw error;}
-    return {playback_id:session.id,project_id:session.project_id,revision:session.revision,...session.target,state:native?.state??session.state,created_at:session.created_at,...(native??{}),...(['failed','cancelled','stopped'].includes(session.state)?{state:session.state}:{}),...(session.error?{error:session.error}:{})};
+    return {playback_id:session.id,project_id:session.project_id,revision:session.revision,...session.target,state:native?.state??session.state,created_at:session.created_at,...(native??{}),...(session.stems?{separation_engine:session.stems.engine,separation_engines:Object.keys(session.stems.bindings),effective_mix:{tracks:session.stems.mix,returns:[]}}:{}),...(['failed','cancelled','stopped'].includes(session.state)?{state:session.state}:{}),...(session.error?{error:session.error}:{})};
   }
-  async controlPlayback(action:'pause'|'resume'|'seek'|'stop',frame?:string,playbackId?:string){
+  async controlPlayback(action:'pause'|'resume'|'seek'|'stop',frame?:string,playbackId?:string,internal=false){
+    if(action==='stop'&&!internal)this.playbackEpoch++;
     const session=this.playback;if(!session||playbackId&&session.id!==playbackId)throw new Error('Playback session not found');
     if(['stopped','completed','failed','cancelled'].includes(session.state))return this.playbackStatus(playbackId);
+    if(action==='stop'&&!session.worker){session.controller.abort();await session.done;return this.playbackStatus(playbackId);}
     for(let i=0;!session.worker&&session.state==='starting'&&i<500;i++)await new Promise(resolve=>setTimeout(resolve,10));
     if(action==='stop'&&!session.worker){session.controller.abort();await session.done;return this.playbackStatus(playbackId);}
     if(!session.worker)throw new Error('Playback is queued; stop it or wait until the audio device is ready');
@@ -378,7 +464,7 @@ export class Service {
       if(change.track_id&&!session.track_ids?.has(change.track_id))throw new Error('Unknown track in pinned playback');
       if(change.bus_id&&!session.bus_ids?.has(change.bus_id))throw new Error('Unknown return in pinned playback');
     }
-    await session.worker.control({action:'set_mix',changes});
+    if(session.stems){const next=structuredClone(session.stems);for(const change of changes){const t=next.mix.find(t=>t.track_id===change.track_id);if(!t)throw Error('Unknown audition stem');if(change.solo===true)for(const other of next.mix)other.solo=false;Object.assign(t,change);}await session.worker.control({action:'set_mix',changes:stemMixChanges(next)});session.stems=next;}else await session.worker.control({action:'set_mix',changes});
     return this.playbackStatus(playbackId);
   }
   async findJob(jobId:string) {

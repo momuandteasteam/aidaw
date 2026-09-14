@@ -1,0 +1,14 @@
+Generation method: built-in image_gen
+
+STACKED
+Create the official VERTICAL STACKED LOCKUP of the approved AIDAW brand in the reference image. This is layout adaptation ONLY, not redesign.
+Keep the exact distinctive threefold cyan-blue-violet sonic-aperture emblem from the reference: same ribbon interweaving, silhouette, center opening, gradients, proportions and lighting. Keep the exact AIDAW wordmark: same navy uppercase geometric letterforms, weight and optical spacing, five contiguous letters.
+Place emblem centered ABOVE the AIDAW wordmark on a square canvas. Emblem spans about 55% canvas width and 54% height in the upper portion; wordmark spans about 72% canvas width below it. Balanced 7–9% gap between emblem bottom and lettering top. Generous outer clear space. Wordmark is navy, no recoloring or creative changes.
+Deliver ONE final stacked logo asset, transparent background with real alpha, no fake checkerboard, no texture, no shadows outside the emblem, no framing, no tagline, no extra words. Same professional approved identity, only icon-above-name composition.
+
+STACKED BACKGROUND
+Make ONLY the background solid WHITE in this stacked AIDAW logo. Replace ALL grey checkerboard including the central opening and letter counters with opaque pure white #FFFFFF. No transparency, no checkerboard, no texture. Preserve the emblem colors, interwoven triangular shape and wordmark exactly. One square vertical logo, same layout.
+
+ICON
+Create the official AIDAW app icon using ONLY the approved colorful symbol in the reference image. Preserve the EXACT cyan-blue-violet threefold interwoven triangular sonic-aperture emblem, its asymmetrical curves, central opening, gradients, orientation and proportions. Do not invent a different knot, add loops or change ribbon crossings.
+Remove all AIDAW lettering. Center the emblem alone on a square 1:1 canvas. Emblem occupies 76% of canvas width, with generous safe margins on every side and optical vertical centering. Background is perfectly smooth opaque very pale ice-white #F5F8FC, full square edge-to-edge with NO checkerboard and no transparency simulation. No rounded tile drawn inside, no outer border, no shadow, no texture, no tagline, no wordmark, no character, no music note, no extra details. Suitable as app-icon source artwork; operating system can apply its own corner shape. One large clean distinctive symbol and nothing else. Final high-resolution PNG actual icon asset, no mockup.

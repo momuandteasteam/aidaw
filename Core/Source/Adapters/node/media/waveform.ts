@@ -1,3 +1,4 @@
+import {comparisonIdentity} from '../../../Application/mastering-preview.js';
 import { z } from 'zod';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -72,6 +73,17 @@ export async function projectWaveform(service:Service, input:Request) {
  const revision=args.revision??current.revision,doc=revision===current.revision?current:parseDocument(await revisionSnapshot(dir,revision));
  const kind=doc.schema_version===3?doc.kind:'composition';
  let audio:Audio|null,role:'source'|'processed_mix',song_id:string|undefined,version_id:string|undefined;
+ if(doc.schema_version===3&&doc.kind==='separation'){
+  const assets=(await manifest(dir)).assets,layers=[];
+  for(const track of doc.composition.tracks){
+   if(track.instrument.kind!=='audio')continue;
+   const assetId=track.instrument.asset_id,asset=assets.find(a=>a.id===assetId);
+   if(!asset||!['source','derived'].includes(asset.role))continue;
+   const audio={path:await contained(dir,asset.path),hash:asset.sha256,duration:Number(doc.composition.duration_frames)};
+   const measured=await measure(audio,args.bins);layers.push({track_id:track.id,peaks:measured.peaks});
+  }
+  return {available:layers.length>0,project_id:args.project_id,revision,kind,role:'stems',sample_rate:rate,duration_frames:doc.composition.duration_frames,layers};
+ }
  if(doc.schema_version===3&&doc.kind==='mastering') {
   const target=resolveMasteringTarget(doc,args),v=target.version;
   const asset=(await manifest(dir)).assets.find(a=>a.id===v.source_asset_id);
@@ -81,20 +93,25 @@ export async function projectWaveform(service:Service, input:Request) {
   const start=Number(v.clip.start_frame),end=v.clip.end_frame===undefined?Number(asset.audio?.frames):Number(v.clip.end_frame);
   audio={path,hash:asset.sha256,start,span:end-start,offset:Number(v.clip.timeline_frame),duration:Number(v.duration_frames)};
   role='source';song_id=target.song.id;version_id=v.id;
+  const prepared=service.comparisonAudio.get(comparisonIdentity({...doc,id:args.project_id},args));if(prepared){audio={...prepared};role='processed_mix';}
  }else{
   if(args.song_id||args.version_id||args.comparison)throw Error('Composition waveform cannot select a mastering song');
   audio=await existingMix(dir,revision);role='processed_mix';
  }
  if(!audio)return {available:false,project_id:args.project_id,revision,kind,reason:'audio_not_generated'};
+ const decoded=await measure(audio,args.bins);
+ return {available:true,project_id:args.project_id,revision,kind,role,sample_rate:rate,duration_frames:String(decoded.duration),peaks:decoded.peaks,song_id,version_id,audio_sha256:audio.hash};
+}
+
+async function measure(audio:Audio,bins:number){
  const before=await stat(audio.path);
  if(!before.isFile()||before.size>maxBytes)throw Error('Waveform audio exceeds the 2 GiB file limit');
- const key=JSON.stringify({...audio,bins:args.bins,size:before.size,mtime:before.mtimeMs,ctime:before.ctimeMs});
+ const key=JSON.stringify({...audio,bins:bins,size:before.size,mtime:before.mtimeMs,ctime:before.ctimeMs});
  let result=cache.get(key);
  if(!result){
-  result=decode(audio,args.bins).then(async decoded=>{const after=await stat(audio!.path);if(after.size!==before.size||after.mtimeMs!==before.mtimeMs||after.ctimeMs!==before.ctimeMs)throw Error('Audio changed during waveform measurement');return decoded;});
+  result=decode(audio,bins).then(async decoded=>{const after=await stat(audio!.path);if(after.size!==before.size||after.mtimeMs!==before.mtimeMs||after.ctimeMs!==before.ctimeMs)throw Error('Audio changed during waveform measurement');return decoded;});
   cache.set(key,result);if(cache.size>32)cache.delete(cache.keys().next().value!);
   result.catch(()=>cache.delete(key));
  }
- const decoded=await result;
- return {available:true,project_id:args.project_id,revision,kind,role,sample_rate:rate,duration_frames:String(decoded.duration),peaks:decoded.peaks,song_id,version_id,audio_sha256:audio.hash};
+ return await result;
 }

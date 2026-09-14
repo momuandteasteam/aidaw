@@ -12,3 +12,9 @@
 7. PRには問題・変更後の動作・設計文書・試験結果・未確認範囲を記す。完成したPRのURLを返し、作者のreview待ちと伝える。送信失敗ならローカル準備と未送信を区別する。自動mergeしない。
 
 必要なGit操作はAIが担当する。ユーザーへbranch名・Git用語の学習を前提とした手順を投げ返さない。GitHub認証が必要な場合も、送れる差分と説明を先に準備する。
+
+## スキャン結果を共有する場合
+
+[共有契約](../../Docs/Contracts/CATALOG_CONTRIBUTION.md)を読む。「スキャン結果を作者に共有して」でこの経路へ進む。catalog_searchで対象を絞り、未指定なら共有する製品を利用者に確認する。catalog_contribution_prepareへplugin_idsを渡す。未索引ならeffect_indexで対象だけを索引する。出力JSONの名称も確認し、製品名・版が公開されることを説明する。
+
+ビルド後、各出力に `node Core/Tools/catalog-contribution.mjs accept <JSONパス>` を実行する。共有対象として例外的に許可するのは生成されたLibraries/Catalog/ContributionsのJSONだけ。公開検査と `node --test Core/Tests/catalog-contribution.test.mjs` を実行し、上のfork・draft PR手順で対象JSONだけを送る。既存の開発変更を混ぜず、必要なら隔離worktreeを使う。DBやportable catalog全体を送らない。

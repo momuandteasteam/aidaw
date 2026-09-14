@@ -19,6 +19,7 @@ test('full inventory continues after a bad candidate and exports only portable m
  const inventory=new PluginInventory(service),result=await inventory.start(['VST3'],30);
  assert.equal(result.state,'succeeded');assert.deepEqual(result.summary,{candidates:2,candidates_scanned:2,candidates_succeeded:1,candidates_failed:1,plugins_found:1,plugins_parameter_indexed:1,plugins_metadata_failed:0});
  const portable=JSON.parse(await readFile(result.portable_catalog,'utf8'));assert.equal(portable.plugins[0].parameters[0].name,'Gain');assert.equal(portable.plugins[0].parameters[0].value,undefined);assert.equal(portable.plugins[0].location,undefined);assert.equal(portable.plugins[0].description_xml,undefined);assert.doesNotMatch(JSON.stringify(portable),/private/);
+ const prepared=await inventory.prepareContribution(['VST3:Example:Good:1']);assert.equal(prepared.published,false);assert.equal(prepared.files.length,1);const contribution=JSON.parse(await readFile(prepared.files[0].path,'utf8'));assert.equal(contribution.plugin.version,'1.2.3');assert.equal(contribution.plugin.parameters[0].id,'gain');
  assert.equal((await inventory.status(result.id)).summary.plugins_found,1);
 });
 test('reference search labels source metadata as unavailable until locally scanned',async()=>{

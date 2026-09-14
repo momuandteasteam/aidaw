@@ -18,6 +18,6 @@ export class Engine implements EnginePort {
  loadModoBassPreset(request:EngineRequests['loadModoBassPreset'],options?:EngineOptions){return this.invoke('loadModoBassPreset',request,options);}
  loadKontaktPreset(request:EngineRequests['loadKontaktPreset'],options?:EngineOptions){return this.invoke('loadKontaktPreset',request,options);}
  listAudioOutputs(){return this.invoke('listAudioOutputs',{});}
- async startPlayback(request:PlaybackRequest,options?:EngineOptions){if(options?.signal?.aborted)throw new EngineContractError('CANCELLED','Playback cancelled');const d=await this.describe();if(!d.features.includes('playback.v1'))throw new EngineContractError('FEATURE_UNAVAILABLE','Engine does not support playback');return this.driver.startPlayback(request,options);}
+ async startPlayback(request:PlaybackRequest,options?:EngineOptions){if(options?.signal?.aborted)throw new EngineContractError('CANCELLED','Playback cancelled');const d=await this.describe();if(!d.features.includes('playback.v1'))throw new EngineContractError('FEATURE_UNAVAILABLE','Engine does not support playback');if(request.prepared_comparison&&!d.features.includes('playback.prepared_comparison.v1'))throw new EngineContractError('FEATURE_UNAVAILABLE','Engine does not support prepared comparisons');if(request.start_paused&&!d.features.includes('playback.initial_pause.v1'))throw new EngineContractError('FEATURE_UNAVAILABLE','Engine does not support paused start');return this.driver.startPlayback(request,options);}
  close(){return this.driver.close();}
 }

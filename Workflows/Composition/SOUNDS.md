@@ -2,7 +2,7 @@
 
 読む条件: 制作に使う音源・プリセットを新規選定または変更するとき。既存音色を変えない編集では読まない。
 
-1. `catalog_discover` / `catalog_scan` / `catalog_search` で利用できる音源を確認する。
+1. `catalog_search`で手元の登録情報、`catalog_reference_search`で共有された製品・版・OS/arch別パラメーターを必要な分だけ検索する。参照JSON全体を読まない。情報が揃っていれば全体索引を繰り返さず、未登録候補だけ`catalog_discover` / `catalog_scan`で確認する。参照はホスト公開情報であり、意味や動作の保証ではない。不一致・不足は対象だけ`plugin_inspect` / `effect_index`で確認する。
 2. Kontakt、Reaktor、Battery等はホスト名だけで決めない。`content_discover_roots` → `content_index` → `content_search` でライブラリ・パッチまで調べる。追加保存先は `content_register_root`。部分スキャンや未確認の保存先を明記する。
 3. 曲調、役割、奏法、音域で候補を比較し、保存プリセットを `sound_probe` / `sound_audition_in_context` で試す。呼び出し元AIが音声を確認し、選定理由と正確なプリセット・状態を記録する。未確認なら聴いたと書かない。音声評価を別プロバイダーへ切り替える機構は不要。
 

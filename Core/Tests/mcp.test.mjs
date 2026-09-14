@@ -1,3 +1,4 @@
+import {releaseVersion} from '../Build/JS/Contracts/release.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -7,10 +8,10 @@ import { fixture, create, track } from './helpers.mjs';
 
 test('real MCP stdio client discovers tools and creates/edits/renders a project', async t => {
   const { root } = await fixture(t);
-  const client = new Client({ name: 'aidaw-integration-test', version: '1.0' });
+  const client = new Client({ name: 'aidaw-integration-test', version: releaseVersion });
   const transport = new StdioClientTransport({ command: process.execPath, args: [resolve('Core/Build/JS/Server/mcp.js')],
     env: { ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)), AIDAW_HOME: root }, stderr: 'pipe' });
-  await client.connect(transport); t.after(() => client.close());
+  await client.connect(transport); assert.equal(client.getServerVersion().version,releaseVersion); t.after(() => client.close());
   const list = await client.listTools(); assert.ok(list.tools.some(t => t.name === 'project_apply'));assert.ok(list.tools.some(t=>t.name==='playback_start'));assert.ok(list.tools.some(t=>t.name==='playback_seek'));
   async function api(name, args) {
     const r = await client.callTool({ name, arguments: args }); assert.ok(!r.isError, JSON.stringify(r)); return JSON.parse(r.content[0].text);

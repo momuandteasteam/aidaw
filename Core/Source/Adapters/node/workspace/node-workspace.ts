@@ -15,13 +15,13 @@ export class NodeWorkspace implements WorkspacePort<Document> {
  private readonly projects:string;
  constructor(root:string){this.projects=homePaths(root).projects;}
  private dir(projectId:string){return join(this.projects,id.parse(projectId));}
- private async envelope(projectId:string){const e=await readJson<Envelope>(join(this.dir(projectId),'project.json'));e.project=parseDocument(e.project);return e;}
+ private async envelope(projectId:string){const e=await readJson<Envelope>(join(this.dir(projectId),'project.json'));parseDocument(e.project);return e;}
  async create(document:Document){
   const dir=this.dir(document.id);await mkdir(this.projects,{recursive:true});await mkdir(dir);
   await layout(dir,'kind' in document?document.kind:'composition');
   const history=await initializeHistory(dir,document);await atomicJson(join(dir,'project.json'),{project:document,history,receipts:{}});await writeProjectViews(dir,document);
  }
- async read(projectId:string){return (await this.envelope(projectId)).project;}
+ async read(projectId:string){return parseDocument((await this.envelope(projectId)).project);}
  async readRevision(projectId:string,revision:number){return parseDocument(await revisionSnapshot(this.dir(projectId),revision));}
  async history(projectId:string,offset=0,limit=50){
   const dir=this.dir(projectId);await locked(join(dir,'temp','project.lock'),async()=>{const e=await this.envelope(projectId);if(!e.history){e.history=await ensureHistory(dir,e.project);await atomicJson(join(dir,'project.json'),e);}});
@@ -39,7 +39,7 @@ export class NodeWorkspace implements WorkspacePort<Document> {
    if(e.project.revision!==base)throw new Error(`Revision conflict: expected ${base}, current ${e.project.revision}`);
    const job=await newJob(dir,{kind:'project_change',request_id:requestId,summary:request.summary,base_revision:base});let committed=false;
    try{
-    const next=parseDocument(await prepare(structuredClone(e.project),{workDirectory:join(job.path,'work')}));
+    const next=parseDocument(await prepare(parseDocument(structuredClone(e.project)),{workDirectory:join(job.path,'work')}));
     if(next.id!==projectId||next.revision!==base+1)throw new Error('Invalid prepared project identity or revision');
     const history=await writeRevision(dir,e.project,next,{request_id:requestId,summary:request.summary,kind:request.restoreRevision!==undefined?'restore':'edit',restored_from_revision:request.restoreRevision});
     await atomicJson(join(job.path,'snapshots','revision.json'),{before:base,after:next.revision,head_hash:history.head_hash});

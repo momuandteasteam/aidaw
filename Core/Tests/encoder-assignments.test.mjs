@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {buildEncoders,commandForEncoder,validateEncoderAssignments} from '../Source/ControlSurface/encoders.mjs';
 const state=()=>({mode:'listen',page:0,projectId:'p',trackId:'t',position:'48000',monitorGain:-12,playback:{state:'playing',duration_frames:'480000'},document:{kind:'composition',revision:1,composition:{tracks:[{id:'t',name:'Lead',gain_db:-6,pan:0}],buses:[]}}});
 test('each encoder can independently assign rotation and press, including press-only and empty slots',()=>{
- const s=state();assert.ok(buildEncoders(s).every(e=>!e.enabled));
+ const s=state();assert.deepEqual(buildEncoders(s).map(e=>e.enabled),[false,false,false,true]);
  for(let index=0;index<4;index++){
   const assigned={...s,encoderAssignments:{composition:{[index]:{rotate:'volume',press:'stop'}}}};
   assert.equal(buildEncoders(assigned)[index].title,'再生音量');
@@ -11,6 +11,7 @@ test('each encoder can independently assign rotation and press, including press-
   assert.deepEqual(commandForEncoder(assigned,index,'press'),{type:'stop'});
   assert.equal(commandForEncoder({...assigned,busy:true},index,'rotate',1),null);
   assert.deepEqual(commandForEncoder({...assigned,busy:true},index,'press'),{type:'stop'});
+  assert.equal(buildEncoders({...assigned,busy:true})[index].enabled,true);
   assigned.encoderAssignments.composition[index]={rotate:'none',press:'play'};
   assert.equal(commandForEncoder(assigned,index,'rotate',1),null);
   assert.deepEqual(commandForEncoder(assigned,index,'press'),{type:'play'});
@@ -29,6 +30,6 @@ test('gain and pan use their assigned roles instead of physical knob index',()=>
 test('encoder preferences reject arbitrary commands and invalid slots and stay scoped by project kind',()=>{
  for(const value of [[],{composition:{4:{rotate:'volume',press:'play'}}},{composition:{0:{rotate:'unknown',press:'play'}}},{composition:{0:{rotate:'seek',press:{type:'run'}}}},{unknown:{}}])assert.ok(validateEncoderAssignments(value));
  const s={...state(),encoderAssignments:{mastering:{0:{rotate:'volume',press:'stop'}}}};
- assert.ok(buildEncoders(s).every(e=>!e.enabled));
+ assert.deepEqual(buildEncoders(s).map(e=>e.enabled),[false,false,false,true]);
  assert.equal(validateEncoderAssignments({composition:{0:{rotate:'seek',press:'none'}}}),null);
 });

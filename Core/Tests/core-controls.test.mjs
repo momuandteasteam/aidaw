@@ -86,7 +86,8 @@ test('composition home has exactly three assigned keys in the requested physical
  assert.equal(pads[2].command.mode,'export');
  assert.equal(pads.filter(p=>p.command).length,3);
  assert.ok(pads.every(p=>p.command?.mode!=='modes'));
- assert.ok(buildEncoders(home).every(e=>!e.enabled));
+ assert.deepEqual(buildEncoders(home).map(e=>e.enabled),[false,false,false,true]);
+ assert.equal(buildEncoders(home)[3].title,'再生音量');
  const master=buildPads({...mastering(),mode:'listen'});
  assert.ok(master.every(p=>p.command?.mode!=='modes'));
 });

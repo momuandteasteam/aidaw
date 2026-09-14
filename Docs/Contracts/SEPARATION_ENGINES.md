@@ -1,0 +1,22 @@
+# 分離エンジン切替
+
+読む条件: ステムの分離方式・結果cache・切替UIを変更するとき。
+正本範囲: Spleeter/Demucs選択、保存済み結果の再利用。
+
+Design status: ready
+
+標準はSpleeter 4stems-16kHz。空の分離作品へ原音を選ぶ既存手順で自動分離する。2段目3列目は「分離方式」と現在の方式名（Spleeter/Demucs）。source未設定なら無効。押すと他方へトグルする。Demucsはsetup済みhtdemucsのみ使用し、未導入時は明示エラー、黙って別方式に代用しない。
+
+separation_startへ任意engine=spleeter|demucsを追加。省略は既存標準/注入port。分離stateへvariantsを保存する: engineごとにsource_asset_id/engine/model/job_id/graph。結果は通常assetと同じ不変データでZIPへ含める。source/modelが一致する検証済みvariantを再利用し、再推論しない。元graphも保存してから切替。同じstem IDのmute/solo/gainは選択中graphから引き継ぎ、波形も新assetへ更新。原音を変えた場合は他原音のvariantを使わない。
+
+未準備方式への初回切替は再生を停止。既存単一lane内で推論・正規化・検証を順次実行し、完成時にrevisionを比較してgraph/stateを一括commit。失敗/取消/競合は現在のgraphを維持。request_id再試行は重複実行しない。初回完了後は直前の再生/一時停止状態・位置を復元。cached切替は待機dialog不要。
+
+初回はモーダルで試聴等をロックし、現在方式→対象方式、段階名、progressバー、キャンセルを表示。推論中はindeterminate、変換/検証は完了stem数/総数、完了のみ100%。終了後は自動解除し失敗を通知。GUIを閉じれば通常のservice終了に従ってcancel。処理中のsettings/keyboard/keysはmodalで遮断。進捗はjob_statusのprogressへ公開、AIも取得できる。
+
+Demucs adapterは既存導入receipt/weights/launcher hashを確認し、ローカルモデルでCLI処理。codeとmodelの利用条件はsetupの既存表記を維持する。結果は4stem、48kHz stereo float、原音全長へ正規化。検証: 2エンジン往復で推論各1回、再試行/取消/失敗/原音変更、UIスロット/lock、Demucs短音声実推論。
+
+ステムmute/soloは非選択時に暗い中立面・控えめな色、押下中はmute=赤、solo=緑の明るい色面と発光枠で区別する。無効は従来の灰色。押下状態と色はeffective_mixと同期し、装飾だけで状態を偽らない。
+
+保存済み両方式は再生開始時に同じgraphへ準備し、非選択方式のtrackをmute/solo解除する。playback_switch_separationは再生workerを再起動せず、一回のset_mixで方式を切替。mute/solo/gain/panはstem IDごとの共通試聴状態として両方式へ対応付け、公開effective_mixから内部track IDを隠す。位置・一時停止・音量を保持。現在の方式は作品revisionへ保存するが試聴mute/soloを作品編集にしない。競合時は音を変えず、native切替失敗は明示する。初回分離時も共通mixを保持して再生開始時に適用する。テストはsolo/muteの往復、同一worker/位置保持、未知方式/競合の拒否。
+
+ステム試聴のsoloは排他的に1つ。別stemのsoloを有効にすると前のsoloを解除し、同じsoloを押すと全解除。soloはmuteより優先し、保持muteを書き換えない。solo中のmuteボタンは消灯・無効、解除で元のmute表示/音へ戻る。複数soloの保存入力は先頭stemだけ採用。波形とmix書き出しもsolo優先。作曲モードの規則は変更しない。

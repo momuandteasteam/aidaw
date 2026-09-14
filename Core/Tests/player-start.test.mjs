@@ -15,6 +15,7 @@ const composition=()=>compositionFromGraph(project.parse({schema_version:2,id:'w
 const album=()=>parseDocument({schema_version:3,kind:'mastering',id:'work',name:'Album',revision:4,mastering:{song_order:['song'],songs:[{id:'song',name:'Song',current_version_id:'v2',comparison:{a:{kind:'version',version_id:'v1'},b:{kind:'source',source_asset_id:'source',version_id:'v2'}},versions:['v1','v2'].map((id,i)=>({id,label:id,created_at:'2026-09-14T00:00:00.000Z',created_revision:i+1,source_asset_id:'source',source_sha256:'a'.repeat(64),clip:{kind:'audio',asset_id:'source',start_frame:'0',end_frame:'24000',fade_in_frames:i?'1000':'0'},duration_frames:'24000',tail_seconds:i?0.75:0.25,input_gain_db:i?-6:0,effects:[]}))}]}});
 class MockEngine{
  requests=[];
+ async describe(){return {features:[]};}
  async close(){}
  async startPlayback(request,{signal}){
   this.requests.push(request);let finish;

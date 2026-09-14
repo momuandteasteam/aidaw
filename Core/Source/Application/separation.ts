@@ -1,4 +1,6 @@
+import {compositionGraph} from '../Domain/domain.js';
 import {z} from 'zod';
+import {workingDecision} from '../Adapters/node/workspace/working-mix.js';
 import {randomUUID} from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
@@ -11,7 +13,7 @@ import {newJob} from '../Adapters/node/workspace/layout.js';
 import {writeZip} from '../Adapters/node/workspace/package.js';
 import type {Service} from './service.js';
 const run=promisify(execFile);
-export const separationRequest=z.object({project_id:id,source_asset_id:z.string().min(1),base_revision:z.number().int().nonnegative(),request_id:id}).strict();
+export const separationRequest=z.object({project_id:id,source_asset_id:z.string().min(1),engine:z.enum(['spleeter','demucs']).optional(),working_copy:workingDecision.optional(),base_revision:z.number().int().nonnegative(),request_id:id}).strict();
 export const separationExportRequest=z.object({project_id:id,request_id:id,revision:z.number().int().nonnegative(),kind:z.enum(['stems','mix']),format:z.enum(['wav','mp3','flac']).default('wav')}).strict();
 async function ffmpeg(args:string[],signal:AbortSignal){return run(process.env.AIDAW_FFMPEG??'ffmpeg',['-v','error','-nostdin','-y',...args],{signal,timeout:7200000,maxBuffer:1024*1024});}
 async function audioInfo(service:Service,path:string){const a:any=await service.engine.analyze({path});if(!Number.isFinite(a.sample_peak)||!Number.isFinite(a.duration_seconds)||a.duration_seconds<=0||a.duration_seconds>1800)throw Error('Invalid audio or duration exceeds 30 minutes');return a;}
@@ -30,30 +32,47 @@ async function launch(service:Service,args:any,kind:string,work:(job:any,status:
 export async function startSeparation(service:Service,args:z.infer<typeof separationRequest>){
  return launch(service,args,'separation',async(job,status,signal)=>{
   const before=await service.readDocument(args.project_id);if(before.revision!==args.base_revision)throw Error('Revision conflict before separation');
+  if(before.schema_version!==3||before.kind!=='separation')throw Error('Not a separation project');
+  const separator=args.engine?service.separators[args.engine]:service.separator;
+  const variants={...before.separation.variants};
+  if(before.separation.engine&&before.separation.source_asset_id&&before.separation.model&&before.separation.job_id&&before.composition.tracks.length)variants[before.separation.engine]={source_asset_id:before.separation.source_asset_id,engine:before.separation.engine,model:before.separation.model,job_id:before.separation.job_id,graph:before.composition};
+  const progress=async(phase:string,completed?:number,total?:number)=>{status.progress={phase,completed,total};await atomicJson(join(job.path,'status.json'),status);};
   const source=(await manifest(service.dir(args.project_id))).assets.find(a=>a.id===args.source_asset_id);if(!source||source.role!=='source')throw Error('Separation requires a source asset, not reference or derived audio');
   const path=await verifyAsset(service.dir(args.project_id),source),info=await audioInfo(service,path),frames=Math.round(info.duration_seconds*48000);
+  const cached=variants[separator.id];
+  if(cached&&cached.source_asset_id===source.id&&cached.model===separator.model){
+   await progress('保存済み結果を確認');const assets=(await manifest(service.dir(args.project_id))).assets;
+   for(const track of cached.graph.tracks){if(track.instrument.kind!=='audio')throw Error('Invalid cached stem');const assetId=track.instrument.asset_id,asset=assets.find(a=>a.id===assetId);if(!asset)throw Error('Missing cached stem');await verifyAsset(service.dir(args.project_id),asset);}
+   const operations:any[]=[...before.composition.tracks.map(t=>({op:'remove_track',track_id:t.id})),{op:'set_duration_frames',duration_frames:cached.graph.duration_frames},...cached.graph.tracks.map(track=>{const old=before.composition.tracks.find(t=>t.id===track.id);return {op:'add_track',track:{...track,...(old?{mute:old.mute,solo:old.solo,gain_db:old.gain_db}:{})}};}),{op:'set_separation',state:{source_asset_id:source.id,engine:separator.id,model:separator.model,job_id:cached.job_id,variants}}];
+   if(signal.aborted)throw Error('Separation cancelled');const changed=await service.apply({project_id:args.project_id,base_revision:args.base_revision,request_id:`sep-${job.id}`,operations,working_copy:args.working_copy,summary:'Switch saved separation engine'});status.committed=true;status.cached=true;status.revision=changed.revision;await progress('完了',1,1);return;
+  }
+  await progress('原音を準備');
   const input=join(job.path,'work','input.wav');await ffmpeg(['-i',path,'-map','0:a:0','-ac','2','-ar','44100','-c:a','pcm_f32le',input],signal);
-  const stems=await service.separator.separate({path:input,outputDirectory:join(job.path,'work','separated'),signal});
+  await progress(`${separator.id}で分離中`);
+  const stems=await separator.separate({path:input,outputDirectory:join(job.path,'work','separated'),signal});
   if(stems.length<2||stems.length>32||new Set(stems.map(s=>s.name)).size!==stems.length||stems.some(s=>!id.safeParse(s.name).success))throw Error('Invalid separator stem names/count');
   const operations:any[]=[];if('composition'in before)for(const t of before.composition.tracks)operations.push({op:'remove_track',track_id:t.id});
   operations.push({op:'set_duration_frames',duration_frames:String(frames)},{op:'set_master_effects',effects:[]},{op:'set_buses',buses:[]});
   const output=join(job.path,'artifacts');await mkdir(output,{recursive:true});
-  for(const stem of stems){
+  for(const [index,stem] of stems.entries()){
+   await progress('ステムを変換・検証',index,stems.length);
    if(signal.aborted)throw Error('Separation cancelled');
    const raw=await audioInfo(service,stem.path);if(Math.abs(raw.duration_seconds-info.duration_seconds)>0.01)throw Error('Separated stem duration mismatch');
    const dest=join(output,`${stem.name}.wav`);await ffmpeg(['-i',stem.path,'-ac','2','-ar','48000','-af',`aresample=48000,apad=whole_len=${frames},atrim=end_sample=${frames}`,'-c:a','pcm_f32le',dest],signal);
    const checked=await audioInfo(service,dest);if(checked.sample_rate!==48000||checked.channels!==2||Math.round(checked.duration_seconds*48000)!==frames)throw Error('Stem format mismatch');
    const asset=await ingest(service,args.project_id,dest,'derived',[source.id]);
-   operations.push({op:'add_track',track:{id:stem.name,name:stem.name,instrument:{kind:'audio',asset_id:asset.id,start_frame:'0',end_frame:String(frames),timeline_frame:'0'},gain_db:0,pan:0,notes:[],effects:[]}});
+   const prior=before.composition.tracks.find(t=>t.id===stem.name);
+   operations.push({op:'add_track',track:{...(prior?{mute:prior.mute,solo:prior.solo,gain_db:prior.gain_db}:{}),id:stem.name,name:stem.name,instrument:{kind:'audio',asset_id:asset.id,start_frame:'0',end_frame:String(frames),timeline_frame:'0'},gain_db:prior?.gain_db??0,pan:0,notes:[],effects:[]}});
    status.files.push({format:'wav',stem:stem.name,path:dest,sha256:asset.sha256});
   }
-  operations.push({op:'set_separation',state:{source_asset_id:source.id,engine:service.separator.id,model:service.separator.model,job_id:job.id}});
+  variants[separator.id]={source_asset_id:source.id,engine:separator.id,model:separator.model,job_id:job.id,graph:compositionGraph.parse({...before.composition,duration_frames:String(frames),master_effects:[],buses:[],tracks:operations.filter(o=>o.op==='add_track').map(o=>o.track)})};
+  operations.push({op:'set_separation',state:{source_asset_id:source.id,engine:separator.id,model:separator.model,job_id:job.id,variants}});
   if(signal.aborted)throw Error('Separation cancelled');
-  const changed=await service.apply({project_id:args.project_id,base_revision:args.base_revision,request_id:`sep-${job.id}`,operations,summary:'Separate source audio into stems'});
-  status.committed=true;status.revision=changed.revision;status.engine=service.separator.id;status.model=service.separator.model;status.source_asset_id=source.id;
+  const changed=await service.apply({project_id:args.project_id,base_revision:args.base_revision,request_id:`sep-${job.id}`,operations,working_copy:args.working_copy,summary:'Separate source audio into stems'});
+  status.committed=true;status.revision=changed.revision;status.engine=separator.id;status.model=separator.model;status.source_asset_id=source.id;await progress('完了',1,1);
  });
 }
-export function audibleStems(tracks:Array<{mute?:boolean;solo?:boolean}>){const solo=tracks.some(t=>t.solo);return tracks.filter(t=>!t.mute&&(!solo||t.solo));}
+export function audibleStems(tracks:Array<{mute?:boolean;solo?:boolean}>){const solo=tracks.find(t=>t.solo);return solo?[solo]:tracks.filter(t=>!t.mute);}
 export async function exportSeparation(service:Service,args:z.infer<typeof separationExportRequest>){
  return launch(service,args,'separation_export',async(job,status,signal)=>{
   const doc=await service.workspace.readRevision(args.project_id,args.revision);if(!('kind'in doc)||doc.kind!=='separation'||!doc.composition.tracks.length)throw Error('No separated stems');

@@ -123,13 +123,43 @@ export function buildPads(s) {
    const play=out[0],has=Boolean(s.document);
    out.splice(0,15,...Array.from({length:15},()=>make('',null,{enabled:false})));
    const combined=stopOrHomeAction(s);
+   out[0]=make(combined.label,combined.command,{enabled:combined.enabled,icon:combined.icon});out[7]=play;out[2]=make('書き出し',{type:'navigate',mode:'export'},{enabled:has});
+   if(s.document?.kind==='separation'){
+    const tracks=tracksOf(s),index=tracks.findIndex(t=>t.id===s.trackId),track=tracks[index];
+    const stem=['vocals','drums','bass','other'].includes(track?.id)?track.id:'other';
+    const actions=contextActions({...s,mode:'tracks'});
+    out[2]=make('書き出し',{type:'separation'},{enabled:tracks.length>0});
+    out[5]=make('分離方式',{type:'switchSeparation'},{enabled:Boolean(s.document.separation?.source_asset_id),icon:'⇄',secondary:s.document.separation?.engine==='demucs'?'Demucs':'Spleeter'});
+    out[3]=make('前のトラック',{type:'selectRelative',target:'track',delta:-1},{enabled:index>0,icon:'↑'});
+    out[6]=make('次のトラック',{type:'selectRelative',target:'track',delta:1},{enabled:index>=0&&index<tracks.length-1,icon:'↓'});
+    for(const [slot,type]of [[1,'mute'],[4,'solo']])out[slot]={...actions.find(p=>p.command.type===type),icon:`stem:${stem}`};
+    const solo=tracksOf(s).some(t=>((s.playback?.effective_mix?.tracks??[]).find(m=>(m.track_id??m.id)===t.id)?.solo??t.solo));if(solo)out[1]={...out[1],pressed:false,enabled:false};
+   }
+
+  }else{
+   const song=songOf(s),combined=stopOrHomeAction(s);
+   out.splice(0,15,...Array.from({length:15},()=>make('',null,{enabled:false})));
    out[0]=make(combined.label,combined.command,{enabled:combined.enabled,icon:combined.icon});
-   out[7]=play;
-   out[2]=make('書き出し',{type:'navigate',mode:'export'},{enabled:has});
-  }else out[6]=make('',null,{enabled:false});
+   out[7]=make(s.playback?.state==='playing'?'一時停止':'再生',{type:'play'},{enabled:Boolean(song),icon:s.playback?.state==='playing'?'Ⅱ':'▶'});
+   out[2]=make('書き出し',{type:'downloadMaster'},{enabled:Boolean(song),icon:'↓'});
+   for(const [slot,index]of [['A',1],['B',4]]){
+    const selection=song?.comparison?.[slot.toLowerCase()],v=song?.versions.find(v=>v.id===selection?.version_id),selected=comparisonSelected(s,slot);
+    out[index]=make(`${slot}を選択`,{type:`switch${slot}`},{enabled:Boolean(selection),icon:slot,pressed:selected,secondary:selected?'選択中':v?.label??comparisonLabel(selection)});
+   }
+   out[5]=make('音を切替',{type:'cycleSelected'},{enabled:Boolean(song&&s.activeSlot&&(song.versions.length>1||song.comparison?.[s.activeSlot==='A'?'b':'a']?.kind==='source')),icon:s.activeSlot==='A'?'B':'A',secondary:s.activeSlot?`${s.activeSlot==='A'?'B':'A'}の次の版へ切替`:''});
+   out[3]=make('前の曲',{type:'moveSong',delta:-1},{enabled:songsOf(s).length>1,icon:'↑'});
+   out[6]=make('次の曲',{type:'moveSong',delta:1},{enabled:songsOf(s).length>1,icon:'↓'});
+  }
  }
- const pads=out.map((p,i)=>({...p,id:`pad-${i+1}`,surfaceMode:s.mode,core:i<8,enabled:p.enabled&&(!s.busy||['navigate','page','back','stop'].includes(p.command?.type)),busy:s.busy&&!['navigate','page','back','stop'].includes(p.command?.type)}));
+ const pads=out.map((p,i)=>({...p,id:`pad-${i+1}`,surfaceMode:s.mode,core:i<8,enabled:p.enabled&&(!s.busy||['navigate','page','back','stop'].includes(p.command?.type)),busy:(p.busy||p.enabled&&s.busy)&&!['navigate','page','back','stop'].includes(p.command?.type)}));
  return applyCustomLayout(s,pads,{physicalOrder:getDesktopKeyOrder(pads)});
+}
+export function comparisonSelected(state,slot){
+ if(state.activeSlot!==slot.toUpperCase())return false;
+ if(!isActive(state))return true;
+ const expected=songOf(state)?.comparison?.[slot.toLowerCase()],p=state.playback;
+ if(p.project_id!==state.projectId||p.song_id!==state.songId||expected?.kind!==p.selection?.kind)return false;
+ return expected.kind==='version'?expected.version_id===p.version_id:expected.source_asset_id===p.source_asset_id&&(!expected.version_id||expected.version_id===p.version_id);
 }
 export function comparisonLabel(target) { return target?.kind==='source'?'原音':target?.version_id??'未割当'; }
 export function commandForPad(s,index) { const pad=buildPads(s)[index]; return pad?.enabled ? pad.command : null; }

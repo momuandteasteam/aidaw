@@ -1,3 +1,3 @@
-export const profile={id:'ulanzi',name:'Ulanzi',transport:'bridge',status:'adapter_required',verifiedHardware:false};
+export const profile={id:'ulanzi',name:'Ulanzi',transport:'bridge',status:'adapter_required',version:'0.0.1',verifiedHardware:false};
 /** Model-specific transport must be supplied before commands can be received. */
 export function createAdapter(){return {handleMidi(){return null;},handleControl(){return null;},learn(){return null;},getMappings(){return [];},setMappings(){},reset(){}};}

@@ -1,0 +1,23 @@
+# GUIの作業中ミックス
+
+読む条件: GUIの音量・パン自動保存、AI編集前の取り込みを変更するとき。
+正本範囲: 版を増やさない調整保存と、正本への明示取り込み。
+関連要件: R-007, R-009, R-011。
+
+Design status: ready
+
+projectのstate/working-mix.jsonに最新差分を上書きする。作品revisionは増やさない。対象はtrack/busのgain_db・pan、masteringの選択song/versionのinput gain。monitor音量・solo等の一時試聴は含めない。既存state/mixer.jsonは解析結果なので流用しない。
+
+差分は安定ID、基点revision、パラメーター別の基点値と現在値を持つ。保存recordのtokenは競合検知専用で作品の版履歴ではない。基点値へ戻した項目は差分から除く。現在の正本が基点値と異なる場合は競合として保持し、自動試聴・自動適用しない。対象削除・mastering版変更も競合。無関係な変更は値比較で再利用できる。
+
+GUIは値を即座に表示し、300msまとめてAPIへ自動保存する。保存は一件ずつ。作品切替・書出し・明示取込・通常終了前にはflushする。失敗は画面に示し、保存済みと偽らない。再起動/再選択で差分を復元する。API経由のみで更新し、直接ファイル編集は扱わない。
+
+working_mix_getは差分・競合・tokenを返す。working_mix_setはtarget、values、基点revision、expected_tokenでCAS保存する。保存lockだけを取りengineや作品commitを呼ばない。working_mix_resolveはtokenとaction=include/discardを受ける。includeは競合がない差分を一つの作品revisionとして保存し、AIの次の編集は返されたrevisionから実行する。masteringは新versionを作る。discardは明示指定時のみ削除する。
+
+作品変更APIは差分があればGUI_ADJUSTMENTS_PENDINGで停止し、差分確認とinclude/discard/keepの選択を案内する。keepはworking_copy:{action:keep,token}で明示し、差分を消さず保存済み正本から編集する。対象/値が競合した差分は試聴しない。GUIでも同じ選択を使う。音声・プロジェクト書き出しにも同じ判断を要求する。保留した差分はローカル作品に残り、可搬archiveには含めない。取り込みとAI編集は別revisionにし、AI編集だけ戻せるようにする。
+
+includeは差分のsnapshotを取りlockを解放してから既存project transactionを呼ぶ。request_idは再試行で同じものを使い、snapshotを解決要求recordに保持する。commit成功後は同じ内容の項目だけ削除し、処理中の追加・変更分は残し、取り込んだ値を新しい基点にする。処理中に基点値へ戻した操作も、取り込み後の逆差分として保持する。失敗時は差分を保持する。project lockと作業差分lockを同時に取らない。版の保存と差分整理の間にクラッシュした場合も同じrequest_idで再実行する。
+
+再生開始後に対象が一致する未競合差分をpreviewへ適用する。適用済みと自動保存済みを区別する。採用済みの過去版の試聴へ現在の差分を混ぜない。値操作中のGUIが古い取得responseで戻らないようにする。
+
+検証: 保存でrevision不変、再起動復元、keep/include/discard、既存値への復帰、同値/別項目の競合、対象消失、mastering版、取り込み中の新調整、include再試行、書き出し前の判断、保存失敗、GUIの連続操作・切替。実音はfakeと実機の確認を区別する。

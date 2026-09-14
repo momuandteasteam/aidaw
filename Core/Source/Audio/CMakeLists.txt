@@ -1,6 +1,7 @@
-juce_add_console_app(aidaw-engine PRODUCT_NAME "aidaw-engine")
+juce_add_console_app(aidaw-engine PRODUCT_NAME "aidaw-engine" VERSION ${PROJECT_VERSION})
 target_sources(aidaw-engine PRIVATE main.cpp)
 target_compile_definitions(aidaw-engine PRIVATE
+  AIDAW_RELEASE_VERSION="${PROJECT_VERSION}"
   JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_PLUGINHOST_VST3=1
   JUCE_PLUGINHOST_AU=$<BOOL:${APPLE}> JUCE_PLUGINHOST_LADSPA=0
   JUCE_MODAL_LOOPS_PERMITTED=1)

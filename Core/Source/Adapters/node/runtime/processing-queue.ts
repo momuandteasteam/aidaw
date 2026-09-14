@@ -20,6 +20,8 @@ export class ProcessingQueue {
    this.pending.push(entry);entry.signal?.addEventListener('abort',entry.abort,{once:true});this.pump();
   });
  }
+ /** Schedule detached background work, even when requested inside the current lane. */
+ enqueue<T>(kind:string,work:()=>Promise<T>,options:{id?:string;signal?:AbortSignal}={}){return context.exit(()=>this.run(kind,work,options));}
  private pump(){
   if(this.active||this.stopped)return;const entry=this.pending.shift();if(!entry)return;
   entry.signal?.removeEventListener('abort',entry.abort!);this.active=entry;entry.state='running';

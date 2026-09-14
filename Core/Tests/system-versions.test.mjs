@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdir,writeFile} from 'node:fs/promises';import {join} from 'node:path';
+import {fixture} from './helpers.mjs';
+test('version API reads manifests without audio lane or plugin loading and marks missing values unknown',async t=>{
+ const {service,api}=await fixture(t);service.processing.run=()=>{throw Error('Must not enter audio lane');};service.engine.describe=()=>{throw Error('Must not load engine');};
+ const path=join(service.root,'Plugins','Effects','aidaw-test');await mkdir(path,{recursive:true});await writeFile(join(path,'manifest.json'),JSON.stringify({version:'1.2.3'}));
+ let result=await api('system_versions',{});assert.equal(result.version,'0.0.1');assert.equal(result.components.find(c=>c.id==='api').name,'AIDAW API');assert.equal(result.components.find(c=>c.id==='mcp').name,'AIDAW MCP Bridge');assert.equal(result.components.find(c=>c.id==='engine:juce').name,'AIDAW Audio Engine');assert.equal(result.components.find(c=>c.id==='core').category,'core');assert.equal(result.components.find(c=>c.id==='Effects:aidaw-test').category,'builtin');assert.equal(result.components.find(c=>c.id==='engine:demucs').category,'technology');assert.equal(result.components.find(c=>c.id==='node').category,'technology');assert.equal(result.components.find(c=>c.id==='Effects:aidaw-test').version,'1.2.3');assert.equal(result.components.find(c=>c.id==='engine:spleeter').status,'unknown');
+ await writeFile(join(path,'manifest.json'),'{bad');result=await api('system_versions',{});assert.equal(result.components.find(c=>c.id==='Effects:aidaw-test').version,null);assert.ok(!JSON.stringify(result).includes(service.root));
+});

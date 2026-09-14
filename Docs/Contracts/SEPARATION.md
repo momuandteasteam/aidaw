@@ -19,9 +19,9 @@ project_create(kind=separation) → asset_import → separation_start(project_id
 
 SeparationPortはモデル識別、入力path、出力directory、AbortSignalから名前付きstem pathを返す。Applicationは個別のPython/TensorFlow構文を知らない。標準はSpleeter 2.4.2の4stems（vocals/drums/bass/other）、16 kHz拡張帯域設定。別モデルに黙って切り替えない。
 
-[作者の論文](https://github.com/deezer/spleeter/blob/master/paper.md)はコードと学習済みモデルをMITと明記する。[公式LICENSE](https://github.com/deezer/spleeter/blob/master/LICENSE)をLibraries/Licensesに保持する。性能は素材・機器依存、最新最高品質とは記載しない。モデル・依存を隔離して導入し、取得元とhashをreceiptに残す。非商用限定・利用条件不明の第三者checkpointを標準へ混在させない。Demucs公開重みは[作者回答](https://github.com/facebookresearch/demucs/issues/327#issuecomment-1134828611)で科学研究用途とされる。リポジトリ・配布物へ同梱せず、セットアップ時に公式配布元から取得する。取得方式によって利用条件が変わるとは扱わない。
+[作者の論文](https://github.com/deezer/spleeter/blob/master/paper.md)はコードと学習済みモデルをMITと明記する。[公式LICENSE](https://github.com/deezer/spleeter/blob/master/LICENSE)をLibraries/Licensesに保持する。性能は素材・機器依存、最新最高品質とは記載しない。モデル・依存を隔離して導入し、取得元とhashをreceiptに残す。非商用限定・利用条件不明の第三者checkpointを標準へ混在させない。Demucs公開重みは[作者回答](https://github.com/facebookresearch/demucs/issues/327#issuecomment-1134828611)で科学研究用途とされる。リポジトリ・配布物へ同梱せず、セットアップ時に公式配布元から取得する。
 
-adapter/worker sourceはCore/Source/Adapters/node/media、導入toolはCore/Tools、実行環境・重み・receiptはPlugins/Engines/<engine>。取得物をGitへ追加しない。Core/Cacheはdownload一時物のみ。通常setupはuvを準備して分離環境も導入する。configure-onlyは既存環境の再構築を行わない。導入失敗時は再実行方法を返す。初回モデル取得を途中で成功と報告しない。
+adapter/worker sourceはCore/Source/Adapters/node/media、導入toolはCore/Tools、実行環境・重み・receiptはPlugins/Engines/<engine>。取得物をGitへ追加しない。Core/Cacheはdownload一時物のみ。通常setupはuvを準備して分離環境も導入する。configure-onlyは既存環境の再構築を行わない。導入失敗時は再実行方法を返す。
 
 Demucs 4.0.1とHTDemucsをSpleeterから隔離して導入する。setup-separationは両方を導入し、setup-demucs単独でも追加できる。公式loaderで重み取得・loadを確認し、版・取得元・全checkpoint hash・コードと重みそれぞれの利用条件をinstallation.jsonへ記録する。既存環境の再実行では再取得不要なcheckpointを再利用する。失敗時は成功receiptを残さない。専用launcherはTORCH_HOMEを導入先へ固定する。既定分離エンジンは自動変更しない。検証は実導入・再実行・checkpoint loadとGit除外、両installerの接続を含む。
 
@@ -29,8 +29,10 @@ Demucs 4.0.1とHTDemucsをSpleeterから隔離して導入する。setup-separat
 
 separation_export(project_id,request_id,revision,kind=stems|mix,format=wav|mp3|flac)は固定版を対象にする。stemsはmute/soloに関わらず全stemのWAVと来歴manifestをZIPにする。mixはsoloが一つでもあればsoloだけを選び、muteを優先して除外し、gainを反映する。選択が空なら拒否する。書出しによって保存mute/soloを変えない。元のstemは非破壊で保持し、clip回避が必要なら共通gainを下げた量をmanifestへ記録する。
 
-GUIファイルメニューで分離作品を作成し、原音を選び分離開始。分離操作ダイアログに進捗・stemごとのmute/solo・ZIP保存・選択mix保存を置く。通常15pad配置を圧迫しない。stem行は名前とmute/soloを横並びにし、540×700の画面では保存ボタンまで表示する。desktopの保存ダイアログとHTTP artifact機構を使い、任意pathのdownload proxyを作らない。
+GUIファイルメニューで分離作品を作成し、原音を選び分離開始。分離操作ダイアログに進捗・stemごとのmute/solo・ZIP保存・選択mix保存を置く。通常面は左上4×2で上段「停止/先頭・再生/一時停止・書き出し・前のトラック」、下段「ミュート・ソロ・方式・次のトラック」。移動は再生位置を維持。範囲外方向と未分離の操作は無効。mute/soloは既存再生mix操作。書き出しは分離・保存ダイアログを開き、パッドmode/選択を維持する。保存mixはダイアログで編集。stem行は名前とmute/soloを横並びにし、540×700の画面では保存ボタンまで表示する。desktopの保存ダイアログとHTTP artifact機構を使い、任意pathのdownload proxyを作らない。
 
 ## 検証
 
 fake portで非同期受付、失敗、取消、retry、revision競合、全stem ZIP、mute/solo/gainの選択、原音来歴、履歴復元・archive往復を検証する。実エンジンでは短い音声で4stem生成・sample rate/channels/長さ/非同一出力を確認する。技術検証と聴取による品質評価を区別し、未実行のOS/GPUを対応検証済みとしない。
+
+ミュート/ソロは図記号を使わず選択stem名を主表示: vocals=ボーカル、drums=ドラムス、bass=ベース、other/未知=その他。下に操作名、tooltipに対象名。上下移動で文字・押下状態を更新。72pxでも名前を省略しない。

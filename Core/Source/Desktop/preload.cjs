@@ -8,9 +8,12 @@ const call = async (channel, args) => {
 
 contextBridge.exposeInMainWorld('aidaw', {
   api: (name, args = {}) => call('player:api', { name, args }),
+  chooseAudioFiles: () => call('player:choose-audio-files', {}),
   chooseFile: kind => call('player:choose-file', { kind }),
   reveal: path => call('player:reveal', { path }),
   saveOutput: path => call('player:save-output', { path }),
+  chooseDownloadPath: (format,filename) => call('player:choose-download-path',{format,filename}),
+  saveDownload: (path,destination) => call('player:save-download',{path,destination}),
   bootstrap: () => call('player:bootstrap'),
   saveAudioPreferences: outputDevice => call('player:audio-preferences', {outputDevice}),
   chooseProjectFolder: () => call('player:choose-project-folder'),

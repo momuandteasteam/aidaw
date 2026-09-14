@@ -108,7 +108,7 @@
     {
       "path": "Docs/Architecture/CONTROLS.md",
       "role": "architecture",
-      "max_bytes": 9000,
+      "max_bytes": 10000,
       "owns": [
         "control-behavior"
       ]
@@ -263,6 +263,126 @@
       "max_bytes": 5000,
       "owns": [
         "client-setup-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/CATALOG_CONTRIBUTION.md",
+      "role": "contract",
+      "max_bytes": 5000,
+      "owns": [
+        "catalog-contribution-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/PROJECT_SYNC.md",
+      "role": "contract",
+      "max_bytes": 16000,
+      "owns": [
+        "project-gui-synchronization"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/STANDARD_DSP.md",
+      "role": "contract",
+      "max_bytes": 6000,
+      "owns": [
+        "standard-dsp-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/WORKING_MIX.md",
+      "role": "contract",
+      "max_bytes": 6000,
+      "owns": [
+        "working-mix-drafts"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/EFFECT_CHAINS.md",
+      "role": "contract",
+      "max_bytes": 5000,
+      "owns": [
+        "effect-chain-contract"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/MASTERING_AB.md",
+      "role": "contract",
+      "max_bytes": 8000,
+      "owns": [
+        "mastering-ab-playback"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/UI_TERMINOLOGY.md",
+      "role": "contract",
+      "max_bytes": 5000,
+      "owns": [
+        "ui-terminology"
+      ]
+    },
+    {
+      "path": "Docs/User/RELEASE_NOTES.md",
+      "role": "user",
+      "max_bytes": 6000,
+      "owns": [
+        "human-release-notes"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/PROJECT_FILES.md",
+      "role": "contract",
+      "max_bytes": 4000,
+      "owns": [
+        "project-file-workflows"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/STEM_WAVEFORM.md",
+      "role": "contract",
+      "max_bytes": 3000,
+      "owns": [
+        "stem-waveform"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/SYSTEM_VERSIONS.md",
+      "role": "contract",
+      "max_bytes": 2500,
+      "owns": [
+        "system-versions"
+      ]
+    },
+    {
+      "path": "Docs/User/TERMS.md",
+      "role": "user",
+      "max_bytes": 6000,
+      "owns": [
+        "human-usage-terms"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/SEPARATION_ENGINES.md",
+      "role": "contract",
+      "max_bytes": 4000,
+      "owns": [
+        "separation-engine-switch"
+      ]
+    },
+    {
+      "path": "Docs/User/BRAND.md",
+      "role": "user",
+      "max_bytes": 3500,
+      "owns": [
+        "human-brand-assets"
+      ]
+    },
+    {
+      "path": "Docs/Contracts/DISTRIBUTION.md",
+      "role": "contract",
+      "max_bytes": 4000,
+      "owns": [
+        "binary-distribution"
       ]
     }
   ]

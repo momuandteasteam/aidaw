@@ -80,3 +80,17 @@ package専用Resourcesはpackage内に保持できる。その参照、hash、�
 Antigravity用.agentsはクライアント必須metadataとして例外登録する。許可内容・生成・公開除外は[CLIENTS](../Contracts/CLIENTS.md)。
 
 Design status: ready
+
+Libraries/Catalog/Contributionsは検証済み公開観測JSONの配置。ローカル共有候補はCore/State/Catalog/outputs/contributions。[共有契約](../Contracts/CATALOG_CONTRIBUTION.md)に従う。
+
+再利用FX列の宣言templateはWorkflows/Templates/EffectChains。[EFFECT_CHAINS](../Contracts/EFFECT_CHAINS.md)に従い、作品へ適用時のstateを展開保存する。
+
+## GUIのローカル導入
+
+Design status: ready
+
+GUIの正式名称はAIDAW DECK、製品版は0.0.1。setup成功条件にホストOS/CPU向けGUIのビルド・導入を含める。更新は `node Core/Tools/install-desktop.mjs --data-dir PATH`。pull/mergeは別操作で、更新ツールはGitを変更しない。成果物はCore/Build/Release。macOSは/Applications/AIDAW DECK.app（書込不可なら~/Applications）、Windows 11はLOCALAPPDATA/Programs/AIDAW DECKとユーザーStart Menu、Linuxは~/.local/lib/aidaw-deckとapplicationsのdesktop entry（未検証）。他OS向けpackageをローカル導入しない。
+
+appへ作品を同梱しない。導入metadataへ既存AIDAW_HOMEとffmpeg/ffprobeの絶対pathを記録する。既存GUI設定の保存先が優先、明示data-dirとの不一致は失敗。packaged起動で保存先消失は明示エラーとし、app内へProjectsを作らない。旧AIDAW PlayerのuserData位置は設定継続のため維持。シェルPATHに依存せず起動する。workspace移動時は同じ導入コマンドを再実行する。
+
+新appを一時配置・検証後に差替え、失敗時は旧appへ戻す。起動中のappの更新は終了後に再実行する。成功receiptに版・OS・CPU・配置・保存先を記録。ビルド/配置失敗をsetup成功としない。署名・公証済とは扱わない。macOS実起動、配置/rollbackの自動試験を検証し、Windows/Linux実機未検証を区別する。

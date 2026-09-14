@@ -9,7 +9,7 @@ Vibe Coding DAW。作品編集はAI、即時操作はGUI・機器。
 | セットアップ・起動 | [セットアップ](Workflows/Development/SETUP.md) |
 | 本体の実装・修正 | [実装](Workflows/Development/IMPLEMENTATION.md) |
 | GUI・スキン・機器 | [操作系](Workflows/Development/CONTROLS.md) |
-| 変更を作者に共有・PR作成 | [還元手順](Workflows/Development/CONTRIBUTE.md) |
+| 変更・スキャン結果の共有・PR作成 | [還元手順](Workflows/Development/CONTRIBUTE.md) |
 | 文書の変更 | [文書規約](Docs/Development/DOCUMENTATION.md) |
 
 **機能追加・バグ修正は文書先行。製品コードを変更する前に[設計確定手順](Workflows/Development/DESIGN_FIRST.md)を完了する。**

@@ -1,6 +1,7 @@
+import {createSurfaceSnapshot} from './surface-contract.mjs';
 import {renderWaveformSvg} from './waveform.mjs';
 import {renderKeySvg,getCoreKeyOrder,getDesktopKeyOrder,keyNumberIndex} from './key-image.mjs';
-import {buildPads} from './model.mjs';
+import {buildPads,versionOf,graphOf,isMastering} from './model.mjs';
 import {buildEncoders,commandForEncoder,renderEncoderFrame} from './encoders.mjs';
 
 export const hardwareProfiles = Object.freeze({
@@ -31,8 +32,9 @@ export function hardwareKeyAction(frame,column,row) {
 
 export function buildHardwareSurface(state,device='stream-deck') {
   const frame=buildHardwareFrame(buildPads(state),device);
-  const duration=buildEncoders(state)[0].max;
-  return {...frame,encoders:frame.profile.encoders?buildEncoders(state):[],touch:frame.profile.touch?{width:800,height:100,svg:renderWaveformSvg({peaks:state.waveform?.peaks??[],available:Boolean(state.waveform?.available),positionRatio:duration?Number(state.position)/duration:0,overlay:state.encoderOverlay})}:null};
+  const duration=Number(state.playback?.duration_frames??state.waveform?.duration_frames??(isMastering(state)?versionOf(state)?.duration_frames:graphOf(state).duration_frames)??0);
+  const comparisons=createSurfaceSnapshot(state).comparisons,comparison=comparisons?.find(c=>c.selected);
+  return {...frame,encoders:frame.profile.encoders?buildEncoders(state):[],touch:frame.profile.touch?{width:800,height:100,svg:renderWaveformSvg({peaks:state.waveform?.peaks??[],available:Boolean(state.waveform?.available),positionRatio:duration?Number(state.position)/duration:0,overlay:state.encoderOverlay,comparison,comparisons,role:state.waveform?.role})}:null};
 }
 
 export function hardwareEncoderAction(state,device,index,gesture,value) {

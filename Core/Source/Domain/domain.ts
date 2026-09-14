@@ -58,8 +58,8 @@ export const masteringDocument = z.object({...base,kind:z.literal('mastering'),m
   if(new Set(songs.map(s=>s.id)).size!==songs.length)ctx.addIssue({code:'custom',message:'Duplicate song IDs'});
   if(new Set(song_order).size!==song_order.length||song_order.length!==songs.length||song_order.some(s=>!songs.some(x=>x.id===s)))ctx.addIssue({code:'custom',message:'Song order must contain each song exactly once'});
 });
-export const separationState=z.object({source_asset_id:z.string().optional(),engine:z.string().optional(),model:z.string().optional(),job_id:id.optional()}).strict();
-export const separationDocument=z.object({...base,kind:z.literal('separation'),composition:compositionGraph,separation:separationState.default({})}).strict().superRefine((d,ctx)=>{
+export const separationState=z.object({source_asset_id:z.string().optional(),engine:z.string().optional(),model:z.string().optional(),job_id:id.optional(),variants:z.record(z.string(),z.object({source_asset_id:z.string(),engine:z.string(),model:z.string(),job_id:id,graph:compositionGraph}).strict()).default({})}).strict();
+export const separationDocument=z.object({...base,kind:z.literal('separation'),composition:compositionGraph,separation:separationState.default({variants:{}})}).strict().superRefine((d,ctx)=>{
  const graph=project.safeParse({...d.composition,schema_version:2,id:d.id,name:d.name,revision:d.revision,instrument_policy:d.instrument_policy});
  if(!graph.success)for(const issue of graph.error.issues)ctx.addIssue({...issue,path:['composition',...issue.path]});
  if(d.composition.buses.length||d.composition.master_effects.length||d.composition.tracks.some(t=>t.instrument.kind!=='audio'||t.pan!==0||t.effects.length||t.sends.length||!t.to_master||t.notes.length||(t.instrument.kind==='audio'&&(t.instrument.start_frame!=='0'||t.instrument.timeline_frame!=='0'||t.instrument.fade_in_frames!=='0'||t.instrument.fade_out_frames!=='0'||t.instrument.end_frame!==d.composition.duration_frames))))ctx.addIssue({code:'custom',message:'Separation requires full-length audio stems without FX, sends or pan'});

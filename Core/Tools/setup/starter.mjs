@@ -51,17 +51,19 @@ async function treeHash(directory){
   else throw Error('Unsupported file in native plugin package');
  }};await walk(directory);return hash.digest('hex');
 }
-async function installStarterPackages(root,build){
+const starterNames=['GM','EQ','Limiter','Reverb','Imager','BassMono','Gain','Enhancer'];
+async function installStarterPackages(root,build,names=starterNames){
+ if(!Array.isArray(names)||!names.length||names.some(name=>!starterNames.includes(name)))throw Error('Unknown standard plugin selection');
  const {homePaths}=await import('../../Build/JS/Adapters/node/workspace/home.js');const paths=homePaths(root);
  const installed=[];
- for(const name of ['GM','EQ','Limiter','Reverb']){
+ for(const name of [...new Set(names)]){
   const slug=name.toLowerCase(),parent=name==='GM'?paths.instruments:paths.effects,destination=join(parent,`aidaw-${slug}`);
   await mkdir(parent,{recursive:true});const stage=join(parent,`.aidaw-${slug}-${randomUUID()}.tmp`),backup=destination+`.previous-${randomUUID()}`;
   await mkdir(stage);
   try{
    const entry=`AIDAW ${name}.vst3`;
    await cp(join(build,`starter/aidaw-starter-${slug}_artefacts`,'Release','VST3',entry),join(stage,entry),{recursive:true,verbatimSymlinks:true});
-   const manifest={schema_version:1,package_id:`aidaw-${slug}`,version:'0.1.0',category:name==='GM'?'instrument':'effect',format:'VST3',entry,platform:process.platform,arch:process.arch};
+   const manifest={schema_version:1,package_id:`aidaw-${slug}`,version:'0.0.1',category:name==='GM'?'instrument':'effect',format:'VST3',entry,platform:process.platform,arch:process.arch};
    if(name==='GM'){
     await mkdir(join(stage,'Resources'));
     for(const resource of ['FluidR3_GM.sf2','FluidR3-LICENSE.txt','FluidR3-README.txt'])await cp(join(build,'starter-assets',resource),join(stage,'Resources',resource));
@@ -82,9 +84,9 @@ async function installStarterPackages(root,build){
  }
  return installed;
 }
-export async function registerStarter(service,build){
+export async function registerStarter(service,build,{names=starterNames}={}){
  return service.processing.run('install_standard_plugins',async()=>{
-  const installed=await installStarterPackages(service.root,build),plugins=[];
+  const installed=await installStarterPackages(service.root,build,names),plugins=[];
   const {Knowledge}=await import('../../Build/JS/Application/knowledge.js');const knowledge=new Knowledge(service);
   for(const item of installed){
    const scan=await service.scan('VST3',item.entry);

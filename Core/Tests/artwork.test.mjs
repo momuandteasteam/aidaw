@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {setImmediate as nextTurn} from 'node:timers/promises';
 import {mkdtemp,writeFile,mkdir,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -25,8 +26,8 @@ test('artwork selection clears immediately and discards a late previous project 
  try{
   runtime.patch({api:['project_artwork'],projectId:'a',document:doc('a')});
   runtime.patch({projectId:'b',document:doc('b')});
-  pending.b({data_url:'data:image/png;base64,new'});await Promise.resolve();assert.equal(runtime.snapshot().artworkUrl,'data:image/png;base64,new');
-  pending.a({data_url:'data:image/png;base64,old'});await Promise.resolve();assert.equal(runtime.snapshot().artworkUrl,'data:image/png;base64,new');
+  pending.b({data_url:'data:image/png;base64,new'});await nextTurn();assert.equal(runtime.snapshot().artworkUrl,'data:image/png;base64,new');
+  pending.a({data_url:'data:image/png;base64,old'});await nextTurn();assert.equal(runtime.snapshot().artworkUrl,'data:image/png;base64,new');
   runtime.patch({document:null});assert.equal(runtime.snapshot().artworkUrl,null);
  }finally{runtime.dispose();}
 });

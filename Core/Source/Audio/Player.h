@@ -1,3 +1,5 @@
+#include "ComparisonMeter.h"
+#include "PreparedComparison.h"
 #pragma once
 #include <atomic>
 #include <mutex>
@@ -198,6 +200,9 @@ static void applyMonitorVolume(juce::AudioBuffer<float>& output, float db) {
 
 class DevicePlayer final : public juce::AudioIODeviceCallback {
     juce::AudioDeviceManager devices; LiveGraph graph; juce::AudioBuffer<float> quantum {2, previewQuantum};
+    ComparisonMeter comparisonMeter;
+    std::unique_ptr<PreparedComparison> prepared;
+    std::atomic<bool> pauseApplied {false};
     std::atomic<bool> paused {false}, finished {false}; std::atomic<juce::int64> requestedSeek {-1};
     std::unique_ptr<LiveMixUpdate> mixOwner;
     std::atomic<LiveMixUpdate*> pendingMix {nullptr}; std::atomic<int> appliedMixSequence {0};
@@ -208,8 +213,9 @@ class DevicePlayer final : public juce::AudioIODeviceCallback {
 public:
     DevicePlayer(juce::AudioPluginFormatManager& formats, const var& request)
         : graph(formats, request["project"], num(request["tail_seconds"], 0, 30), request["start_frame"].toString().getLargeIntValue(), static_cast<bool>(request["loop"]), request["loop_start_frame"].toString().getLargeIntValue(), request["loop_end_frame"].toString().getLargeIntValue()) {
+        if(request.hasProperty("prepared_comparison"))prepared=std::make_unique<PreparedComparison>(request["prepared_comparison"]);
         const auto monitorDb = request.hasProperty("monitor_gain_db") ? static_cast<float>(num(request["monitor_gain_db"], -96, 0)) : 0.0f;
-        requestedMonitorDb = monitorDb; appliedMonitorDb = monitorDb;
+        requestedMonitorDb = monitorDb; appliedMonitorDb = monitorDb; paused = static_cast<bool>(request["start_paused"]);
         effectiveMix = graph.mixStatus();
         const auto preferred = request["output_device"].toString();
         auto error = devices.initialise(0, 2, nullptr, true, preferred, nullptr); check(error.isEmpty(), "Cannot open output device: " + error);
@@ -231,20 +237,33 @@ public:
             appliedMonitorDb.store(requestedMonitorDb.load(), std::memory_order_relaxed);
             appliedVolumeSequence.store(volumeSequence, std::memory_order_release);
         }
-        if (paused || finished) return;
+        const bool isPausedNow=paused.load(); pauseApplied.store(isPausedNow,std::memory_order_release);
+        if(prepared){const auto seek=requestedSeek.exchange(-1);if(seek>=0)graph.position=seek;
+            if(prepared->transition(isPausedNow,graph.position.load())){comparisonMeter.reset();if(isPausedNow)graph.position=std::min(graph.position.load(),prepared->duration()-1);}}
+        if (isPausedNow || finished) return;
         try {
-            const auto seek = requestedSeek.exchange(-1); if (seek >= 0) graph.seek(seek);
+            const auto seek = requestedSeek.exchange(-1); if (seek >= 0) {if(prepared)graph.position=seek;else graph.seek(seek);}
             for (int offset = 0; offset < samples; offset += previewQuantum) {
-                graph.process(quantum); applyMonitorVolume(quantum, appliedMonitorDb.load()); const auto count = std::min(previewQuantum, samples - offset);
+                if(prepared){auto at=graph.position.load();if(graph.loop&&at>=graph.loopEnd){at=graph.loopStart;graph.position=at;}prepared->process(quantum,at);graph.position=prepared->transitioning()?at+previewQuantum:std::min(at+previewQuantum,prepared->duration());}else graph.process(quantum); comparisonMeter.process(quantum.getReadPointer(0),quantum.getReadPointer(1),previewQuantum); applyMonitorVolume(quantum, appliedMonitorDb.load()); const auto count = std::min(previewQuantum, samples - offset);
                 for (int c = 0; c < std::min(2, outputChannels); ++c) if (outputs[c]) juce::FloatVectorOperations::copy(outputs[c] + offset, quantum.getReadPointer(c), count);
-                if (!graph.loop && graph.position >= graph.endFrame) { finished = true; break; }
+                if (!graph.loop && (!prepared||!prepared->transitioning()) && graph.position >= (prepared?prepared->duration():graph.endFrame)) { finished = true; break; }
             }
         } catch (const std::exception& e) { std::lock_guard lock(errorMutex); callbackError = e.what(); finished = true; }
     }
     void audioDeviceAboutToStart(juce::AudioIODevice*) override {}
     void audioDeviceStopped() override {}
-    void pause(bool value) { paused = value; }
+    void pause(bool value) {
+        paused.store(value,std::memory_order_release);
+        const auto deadline=juce::Time::getMillisecondCounterHiRes()+2000;
+        while(pauseApplied.load(std::memory_order_acquire)!=value){check(juce::Time::getMillisecondCounterHiRes()<deadline,"Audio device did not acknowledge pause");juce::Thread::sleep(1);}
+    }
+    void selectComparison(int slot){
+        check(prepared!=nullptr&&slot>=0&&slot<2,"Prepared comparison is unavailable");prepared->requested.store(slot,std::memory_order_release);
+        const auto deadline=juce::Time::getMillisecondCounterHiRes()+2000;
+        while(prepared->applied.load(std::memory_order_acquire)!=slot){check(!finished&&juce::Time::getMillisecondCounterHiRes()<deadline,"Comparison switch was not acknowledged");juce::Thread::sleep(1);}
+    }
     void setMix(const var& changes, int sequence) {
+        check(!prepared,"Prepared comparison is immutable; restart to change its mix");
         check(pendingMix.load(std::memory_order_acquire) == nullptr, "A mix update is still pending");
         mixOwner = graph.prepareMix(changes, sequence); pendingMix.store(mixOwner.get(), std::memory_order_release);
         const auto deadline = juce::Time::getMillisecondCounterHiRes() + 2000;
@@ -261,10 +280,11 @@ public:
             check(juce::Time::getMillisecondCounterHiRes() < deadline, "Audio device did not apply monitor volume"); juce::Thread::sleep(1);
         }
     }
-    void seek(juce::int64 frame) { check(frame >= 0 && frame < graph.endFrame, "Playback seek is outside the project"); requestedSeek = frame; finished = false; }
+    void replaceComparison(int slot,const juce::File& file){check(prepared!=nullptr,"Prepared comparison unavailable");prepared->replaceInactive(slot,file);selectComparison(slot);}
+    void seek(juce::int64 frame) { check(frame >= 0 && frame < (prepared?prepared->duration():graph.endFrame), "Playback seek is outside the project"); requestedSeek = frame; finished = false; }
     bool isPaused() const { return paused; } bool isFinished() const { return finished; }
     String error() const { std::lock_guard lock(errorMutex); return callbackError; }
-    var status(const String& state) const { auto* device = devices.getCurrentAudioDevice(); return obj({{"state", state}, {"position_frame", String(graph.position.load())}, {"position_seconds", graph.position.load() / rate}, {"duration_frames", String(graph.endFrame)}, {"duration_seconds", graph.endFrame / rate}, {"loop", graph.loop}, {"processing_latency_samples", graph.processingLatency}, {"output_device", device ? device->getName() : String()}, {"device_buffer_samples", device ? device->getCurrentBufferSizeSamples() : 0}, {"xruns", device ? device->getXRunCount() : -1}, {"effective_mix", effectiveMix}, {"monitor_gain_db",appliedMonitorDb.load()},{"applied_control_sequence",std::max(appliedMixSequence.load(),appliedVolumeSequence.load())}}); }
+    var status(const String& state) const { auto* device = devices.getCurrentAudioDevice(); return obj({{"prepared_comparison",prepared!=nullptr},{"switch_frame",String(prepared?prepared->switchFrame.load():graph.position.load())},{"state", state}, {"position_frame", String(graph.position.load())}, {"position_seconds", graph.position.load() / rate}, {"duration_frames", String(prepared?prepared->duration():graph.endFrame)}, {"duration_seconds", (prepared?prepared->duration():graph.endFrame) / rate}, {"loop", graph.loop}, {"processing_latency_samples", graph.processingLatency}, {"output_device", device ? device->getName() : String()}, {"device_buffer_samples", device ? device->getCurrentBufferSizeSamples() : 0}, {"xruns", device ? device->getXRunCount() : -1}, {"comparison_meter",obj({{"available",comparisonMeter.valid.load()},{"rms",comparisonMeter.rms.load()},{"sample_peak",comparisonMeter.samplePeak.load()},{"window_ms",400},{"tap","pre_monitor"}})}, {"effective_mix", effectiveMix}, {"monitor_gain_db",appliedMonitorDb.load()},{"applied_control_sequence",std::max(appliedMixSequence.load(),appliedVolumeSequence.load())}}); }
 };
 
 static void writePlayerStatus(const juce::File& path, const var& value) { check(path.replaceWithText(juce::JSON::toString(value)), "Cannot write playback status"); }
@@ -285,9 +305,9 @@ var playbackGraphProbe(juce::AudioPluginFormatManager& formats, const var& reque
 
 var playback(juce::AudioPluginFormatManager& formats, const var& request) {
     const auto statusPath = path(request["status_path"]), controlPath = path(request["control_path"]); DevicePlayer player(formats, request);
-    int sequence = 0, statusCountdown = 0; String finalState = "completed";
-    const auto status = [&](const String& state) { auto value = player.status(state); value.getDynamicObject()->setProperty("control_sequence", sequence); return value; };
-    writePlayerStatus(statusPath, status("playing"));
+    int sequence = 0, statusCountdown = 0; String finalState = "completed", controlError;
+    const auto status = [&](const String& state) { auto value = player.status(state); value.getDynamicObject()->setProperty("control_sequence", sequence);value.getDynamicObject()->setProperty("control_error",controlError); return value; };
+    writePlayerStatus(statusPath, status(player.isPaused() ? "paused" : "playing"));
     while (!player.isFinished()) {
         juce::MessageManager::getInstance()->runDispatchLoopUntil(20);
         bool controlChanged = false;
@@ -295,12 +315,14 @@ var playback(juce::AudioPluginFormatManager& formats, const var& request) {
             var control; if (juce::JSON::parse(controlPath.loadFileAsString(), control).wasOk()) {
                 juce::Array<var> commands; if (control["commands"].isArray()) commands = *control["commands"].getArray(); else commands.add(control);
                 for (const auto& command : commands) { const int next = static_cast<int>(command["sequence"]); if (next > sequence) {
-                    sequence = next; controlChanged = true; const auto action = command["action"].toString();
+                    sequence = next; controlChanged = true;controlError.clear(); const auto action = command["action"].toString();
                     if (action == "pause") player.pause(true); else if (action == "resume") player.pause(false);
                     else if (action == "seek") player.seek(command["frame"].toString().getLargeIntValue());
                     else if (action == "set_mix") player.setMix(command["changes"], next);
+                    else if (action == "replace_comparison") {try{player.replaceComparison(static_cast<int>(num(command["slot"],0,1)),path(command["path"]));}catch(const std::exception& e){controlError=e.what();}}
+                    else if (action == "select_comparison") player.selectComparison(static_cast<int>(num(command["slot"],0,1)));
                     else if (action == "set_volume") player.setVolume(command["gain_db"], next);
-                    else if (action == "stop") { finalState = "stopped"; break; }
+                    else if (action == "stop") { player.pause(true); finalState = "stopped"; break; }
                 }}
             }
         }

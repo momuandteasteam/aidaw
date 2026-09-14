@@ -1,3 +1,4 @@
+import {releaseVersion} from '../../../Contracts/release.js';
 import {homePaths} from '../workspace/home.js';
 import {toJuceGraph} from './juce-plan.js';
 import {atomicJson,readJson} from '../workspace/storage.js';
@@ -65,14 +66,15 @@ export class JuceFileWorker {
       stop();await done.catch(()=>{});throw new Error('Audio device and plug-ins did not become ready within 180 seconds');
     })();
     void ready.catch(()=>{});
-    const command=(action:'pause'|'resume'|'seek'|'stop'|'set_mix'|'set_volume',frame?:string,changes?:PlaybackMixChange[],gainDb?:number)=>{
-      const payload={sequence:++sequence,action,...(frame!==undefined?{frame}:{}),...(changes!==undefined?{changes}:{}),...(gainDb!==undefined?{gain_db:gainDb}:{})};
-      writes=writes.then(async()=>{
+    const command=(action:'pause'|'resume'|'seek'|'stop'|'set_mix'|'set_volume'|'select_comparison'|'replace_comparison',frame?:string,changes?:PlaybackMixChange[],gainDb?:number,slot?:number,path?:string)=>{
+      const payload={...(path?{path}:{}),sequence:++sequence,action,...(slot!==undefined?{slot}:{}),...(frame!==undefined?{frame}:{}),...(changes!==undefined?{changes}:{}),...(gainDb!==undefined?{gain_db:gainDb}:{})};
+      writes=writes.catch(()=>{}).then(async()=>{
         if(lifecycle.signal.aborted){await done;throw new Error('Playback has ended');}
         const temp=paths.control+`.${process.pid}.${payload.sequence}.tmp`;
         try{await writeFile(temp,JSON.stringify({commands:[payload]}));await rename(temp,paths.control);}finally{await rm(temp,{force:true});}
         for(let i=0;i<400;i++){
-          try{const status=JSON.parse(await readFile((request as any).status_path,'utf8'));if(status.control_sequence>=payload.sequence)return;}catch{}
+          let ack:any;try{ack=JSON.parse(await readFile((request as any).status_path,'utf8'));}catch{}
+          if(ack?.control_sequence>=payload.sequence){if(ack.control_error)throw Error(ack.control_error);return;}
           if(lifecycle.signal.aborted){await done;throw new Error('Playback ended before the control was acknowledged');}
           await tick();
         }
@@ -135,9 +137,9 @@ export class JuceFileDriver implements EngineDriver {
  }
  private async negotiate():Promise<EngineDescriptor>{
   const caps=await this.worker.call({command:'capabilities'});
-  if(caps.version!=='0.1.0'||caps.sample_rate!==48000)throw new EngineContractError('CONTRACT_INCOMPATIBLE','Unsupported JUCE native protocol; install a matching driver');
-  const content_fingerprint=createHash('sha256').update(await readFile(this.worker.executable)).update('juce-file-driver/1').update(await this.worker.resourceFingerprint()).digest('hex');
-  return {id:'aidaw.juce',version:caps.version,adapter_id:'juce-file-driver',adapter_version:'1',contract:{major:1,minor:0},content_fingerprint,features:[...Object.keys(nativeCommands).map(k=>k+'.v1'),'playback.v1'],sample_rates:[48000],plugin_formats:caps.formats};
+  if(caps.version!==releaseVersion||caps.sample_rate!==48000)throw new EngineContractError('CONTRACT_INCOMPATIBLE','Unsupported JUCE native protocol; install a matching driver');
+  const content_fingerprint=createHash('sha256').update(await readFile(this.worker.executable)).update('juce-file-driver/'+releaseVersion).update(await this.worker.resourceFingerprint()).digest('hex');
+  return {id:'aidaw.juce',version:caps.version,adapter_id:'juce-file-driver',adapter_version:releaseVersion,contract:{major:1,minor:0},content_fingerprint,features:[...Object.keys(nativeCommands).map(k=>k+'.v1'),'playback.v1',...(caps.playback_replace_comparison?['playback.replace_comparison.v1']:[]),...(caps.playback_prepared_comparison?['playback.prepared_comparison.v1']:[]),...(caps.playback_initial_pause?['playback.initial_pause.v1']:[]),...(caps.playback_position_switch?['playback.position_switch.v1']:[])],sample_rates:[48000],plugin_formats:caps.formats};
  }
  async invoke<K extends keyof EngineRequests>(operation:K,request:EngineRequests[K],options:EngineOptions={}):Promise<EngineResults[K]>{
   if(!Object.hasOwn(nativeCommands,operation))throw new EngineContractError('FEATURE_UNAVAILABLE','Unknown engine operation');
@@ -161,11 +163,13 @@ export class JuceFileDriver implements EngineDriver {
   let last:PlaybackStatus|undefined;
   if(request.plan.contract!=='aidaw.audio-plan'||request.plan.version!==1)throw new EngineContractError('CONTRACT_INCOMPATIBLE','Audio plan version 1 is required');
   const {plan,...payload}=request;
-  const worker=await this.worker.launchPlayback({...payload,project:await toJuceGraph(plan,p=>this.bindProcessor(p)),command:'playback',status_path:statusPath,control_path:paths.control},paths,options);
+  const graph=await toJuceGraph(plan,p=>this.bindProcessor(p));
+  if(request.prepared_comparison){Object.assign(graph,{tracks:[],buses:[],master_effects:[]});}
+  const worker=await this.worker.launchPlayback({...payload,project:graph,command:'playback',status_path:statusPath,control_path:paths.control},paths,options);
   const status=async()=>{try{last=JSON.parse(await readFile(statusPath,'utf8'));}catch(e:unknown){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;}return last;};
   const done=worker.done.then(async result=>{await status();last={...last,...result};return last!;}).finally(()=>rm(dir,{recursive:true,force:true}));
   void done.catch(()=>{});
-  const control=async(change:import('../../../Contracts/engine-contracts.js').PlaybackControl)=>{await worker.command(change.action,'frame' in change?change.frame:undefined,'changes' in change?change.changes:undefined,'gain_db' in change?change.gain_db:undefined);await status();};
+  const control=async(change:import('../../../Contracts/engine-contracts.js').PlaybackControl)=>{await worker.command(change.action,'frame' in change?change.frame:undefined,'changes' in change?change.changes:undefined,'gain_db' in change?change.gain_db:undefined,'slot' in change?change.slot:undefined,'path' in change?change.path:undefined);await status();};
   const close=async()=>{await worker.command('stop').catch(()=>{});await done.catch(()=>{});await rm(dir,{recursive:true,force:true});};
   return {ready:worker.ready,done,status,control,close};
  }

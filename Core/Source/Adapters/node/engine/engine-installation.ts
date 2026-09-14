@@ -1,3 +1,4 @@
+import {releaseVersion} from '../../../Contracts/release.js';
 import {createHash, randomUUID} from 'node:crypto';
 import {readFileSync, realpathSync, statSync, existsSync} from 'node:fs';
 import {mkdir, copyFile, chmod, rename, rm, readFile} from 'node:fs/promises';
@@ -23,7 +24,7 @@ export function resolveEngineExecutable(root?:string,fallback?:string):string{
    return executable;
   }
  }
- if(root&&!fallback)throw Error('AIDAW home engine is not installed; run setup before starting the application');
+ if(root&&!fallback)throw Error('AIDAW Audio Engine is not installed; run setup before starting the application');
  return resolve(fallback??defaultEngineExecutable());
 }
 /** Publish an immutable content-addressed executable, then atomically select its manifest. */
@@ -33,7 +34,7 @@ export async function installEngine(root:string,sourceExecutable:string,options:
  await mkdir(folder,{recursive:true});
  const pending=join(folder,`.${randomUUID()}.tmp`);
  try{await copyFile(sourceExecutable,pending);const copied=createHash('sha256').update(await readFile(pending)).digest('hex');if(copied!==sha256)throw Error('Engine source changed during installation');await chmod(pending,0o755);if(existsSync(target)){if(createHash('sha256').update(await readFile(target)).digest('hex')!==sha256)throw Error('Existing immutable engine is corrupt');}else await rename(pending,target);}finally{await rm(pending,{force:true});}
- const manifest={schema_version:1,protocol_version:1,version:options.version??'development',platform:process.platform,arch:process.arch,executable:`${platformKey}/${sha256}/${executableName}`,sha256,installed_at:new Date().toISOString()};
+ const manifest={schema_version:1,protocol_version:1,version:options.version??releaseVersion,platform:process.platform,arch:process.arch,executable:`${platformKey}/${sha256}/${executableName}`,sha256,installed_at:new Date().toISOString()};
  await atomicJson(join(base,'manifest.json'),manifest);return {...manifest,path:target};
 }
 export function resolveEngineSoundfont(root:string|undefined,executable:string):string|undefined{

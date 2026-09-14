@@ -22,3 +22,44 @@ test('combined stop/home key stops at the current position, then rewinds on the 
   }finally{runtime.dispose();}
  }
 });
+test('GUI batches gain changes, restores them on selection, retries failed saves, and excludes monitor volume',async()=>{
+ const calls=[],errors=[];let fail=false,mix={revision:4,token:'0',entries:[]};
+ const document={...doc,composition:{...doc.composition,tracks:[{id:'keys',name:'Keys',gain_db:-6,pan:0}]}};
+ const application={async invoke(name,args){calls.push({name,args});if(name==='project_document')return document;if(name==='working_mix_get')return structuredClone(mix);if(name==='working_mix_set'){if(fail)throw Error('disk unavailable');mix={revision:4,token:String(Number(mix.token)+1),entries:[{key:'song:track:keys',target:{...args.target,key:'song:track:keys',project_id:'song',base_revision:4,name:'Keys',gain_db:-6,pan:0},values:args.values,base_values:{gain_db:-6},status:'pending'}]};return {token:mix.token};}return {};}};
+ const runtime=createControlRuntime({application,host:{clearMessage(){}},onError:e=>errors.push(e)});
+ try{
+ runtime.patch({api:['working_mix_get','working_mix_set'],document,projectId:'song',trackId:'keys'});
+ for(let i=0;i<10;i++)await runtime.dispatch({type:'adjustParameter',parameter:'gain_db',delta:-.5});
+ await runtime.flushMix();assert.equal(calls.filter(c=>c.name==='working_mix_set').length,1);assert.equal(mix.entries[0].values.gain_db,-11);
+ await runtime.chooseProject('song');assert.equal(runtime.getState().dialDrafts['song:track:keys'].values.gain_db,-11);
+ await runtime.dispatch({type:'monitorVolume',delta:-3});await runtime.flushMix();assert.equal(calls.filter(c=>c.name==='working_mix_set').length,1);
+ fail=true;await runtime.dispatch({type:'adjustParameter',parameter:'gain_db',delta:-.5});await assert.rejects(runtime.flushMix(),/disk unavailable/);assert.equal(runtime.getState().dialDrafts['song:track:keys'].values.gain_db,-11.5);
+ fail=false;await runtime.flushMix();assert.equal(mix.entries[0].values.gain_db,-11.5);
+ }finally{runtime.dispose();}
+});
+test('GUI export preflight honors include, keep and discard; restore retains its historical target',async()=>{
+ for(const choice of ['include','keep','discard']){
+  const calls=[];let revision=4,entries=[{key:'song:track:t',target:{name:'Track'},values:{gain_db:-3},base_values:{gain_db:0},status:'pending'}];
+  const application={async invoke(name,args){calls.push({name,args});if(name==='working_mix_get')return {revision,token:'1',entries};if(name==='working_mix_resolve'){entries=[];if(args.action==='include')revision++;return {revision};}if(name==='project_document')return {...doc,revision};if(name==='project_history')return {entries:[]};if(name==='project_save')return {output:'/mock/project.zip'};return {};}};
+  const errors=[],runtime=createControlRuntime({application,host:{clearMessage(){},async form(title,fields){assert.equal(fields[0].value,'include');return {action:choice};},async saveOutput(){}},onError:e=>errors.push(e)});
+  try{
+   runtime.patch({api:['working_mix_get','working_mix_set','working_mix_resolve'],projectId:'song',document:doc});
+   await runtime.dispatch({type:'save'});assert.equal(errors.length,0);const save=calls.find(c=>c.name==='project_save');assert.ok(save);
+   if(choice==='keep')assert.deepEqual(save.args.working_copy,{action:'keep',token:'1'});else assert.equal(calls.find(c=>c.name==='working_mix_resolve').args.action,choice);
+   if(choice==='include'){
+    entries=[{target:{name:'Track'},values:{pan:.2},base_values:{pan:0},status:'pending'}];runtime.patch({versionId:'2'});await runtime.dispatch({type:'restore'});
+    const restore=calls.find(c=>c.name==='project_restore');assert.equal(restore.args.revision,2);assert.equal(restore.args.base_revision,6);
+   }
+  }finally{runtime.dispose();}
+ }
+});
+test('rewind rejects an in-flight status and stopped sessions do not overwrite home',async()=>{
+ let resolveStatus,requested;const waiting=new Promise(r=>requested=r),calls=[];
+ const runtime=createControlRuntime({application:{bootstrap:async()=>({projects:[]}),async invoke(name,args){calls.push({name,args});if(name==='playback_status'){requested();return new Promise(r=>resolveStatus=r);}if(name==='project_document')return doc;if(name==='project_list')return {projects:[]};if(name==='playback_seek')return {playback_id:'live',state:'playing',position_frame:'0'};return {};}},host:{preferences:async()=>({}),configure:async()=>{},clearMessage(){}},onError:e=>{throw e;}});
+ try{await runtime.start();runtime.patch({projectId:'song',document:doc,position:'96000',playback:{playback_id:'live',state:'playing',duration_frames:'192000'}});await waiting;
+ await runtime.dispatchAction({type:'transport.home'});resolveStatus({playback_id:'live',state:'playing',position_frame:'96000'});await new Promise(r=>setTimeout(r,20));assert.equal(runtime.getState().position,'0');
+ runtime.patch({playback:{playback_id:'live',state:'completed',position_frame:'192000'},position:'96000'});await runtime.dispatchAction({type:'transport.home'});const count=calls.filter(c=>c.name==='playback_status').length;await new Promise(r=>setTimeout(r,450));assert.equal(runtime.getState().position,'0');assert.equal(calls.filter(c=>c.name==='playback_status').length,count);
+ }finally{runtime.dispose();}
+});
+
+test('strip seek rounds fractional positions and clamps the right edge inside audio',async()=>{const {runtime,calls}=fixture();try{for(const [ratio,frame]of [[.123456789,'23704'],[1,'191999']]){runtime.patch({playback:{playback_id:'live',state:'paused',duration_frames:'192000'}});await runtime.dispatchAction({type:'transport.seek',ratio});assert.equal(calls.at(-1).args.frame,frame);assert.equal(runtime.getState().position,frame);}}finally{runtime.dispose();}});

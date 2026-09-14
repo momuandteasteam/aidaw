@@ -1,0 +1,33 @@
+name: Windows distribution
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/windows-distribution-*']
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Core/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --prefix Core
+      - run: npm --prefix Core run build
+      - run: cmake -S Core -B Core/Build/Native -A x64
+      - run: cmake --build Core/Build/Native --config Release --parallel 4
+      - run: node --test Core/Tests/distribution.test.mjs
+      - run: node Core/Tools/build-distribution.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AIDAW-Windows-x64
+          path: |
+            Core/Build/Release/AIDAW-*-win32-x64.zip
+            Core/Build/Release/AIDAW-*-win32-x64.zip.sha256
+          if-no-files-found: error

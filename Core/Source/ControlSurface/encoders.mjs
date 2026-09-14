@@ -20,11 +20,11 @@ export function encoderSelection(state) {
 }
 function buildContextEncoders(state) {
  const graph=graphOf(state),duration=Number(state.playback?.duration_frames??(isMastering(state)?versionOf(state)?.duration_frames:graph.duration_frames??Math.round((graph.length_ticks??0)/(graph.ppq??960)*60/(graph.bpm??120)*48000)))||0;
- const target=encoderTarget(state),draft=state.dialDrafts?.[target?.key],gain=draft?.values.gain_db??target?.gain_db??0,pan=draft?.values.pan??target?.pan??0;
+ const target=encoderTarget(state),draft=state.dialDrafts?.[target?.key]?.conflict?null:state.dialDrafts?.[target?.key],gain=draft?.values.gain_db??target?.gain_db??0,pan=draft?.values.pan??target?.pan??0;
  const selection=encoderSelection(state),selected=selection.items.find(item=>String(item.id??item.project_id??item.revision)===String(selection.selected));
  const versions=versionsOf(state),version=versionOf(state),index=versions.findIndex(v=>v.id===version?.id);
  const available=!state.busy;
- const parameterStatus=parameter=>{const dirty=draft?.values[parameter]!==undefined;return {dirty,previewed:dirty&&draft.previewed,status:dirty?(draft.previewed?'未保存 · 試聴に反映':'未保存 · 保存で反映'):'保存済み'};};
+ const parameterStatus=parameter=>{const dirty=draft?.values[parameter]!==undefined;return {dirty,previewed:dirty&&draft.previewed,status:dirty?`${draft.saved?'調整を自動保存済み':'調整を保存中'}${draft.previewed?' · 試聴に反映':''}`:'保存済み'};};
  const items=[
   {index:0,title:'再生位置',value:seconds(state.position),detail:`/ ${seconds(duration)}`,hint:'回す:1秒 · 押す:再生 / 停止',touchHint:'タップ:位置指定 · 下部:先頭',enabled:available&&duration>0,min:0,max:duration,valueNumber:Number(state.position||0),normalized:duration?Number(state.position||0)/duration:0},
   {index:1,title:selection.label,value:selected?.name??selected?.label??(selected?.revision!==undefined?`R${selected.revision}`:'未選択'),detail:`${selection.items.length} 件`,hint:'回す:選択 · 押す:一覧',touchHint:'スワイプ:前後 · タップ:一覧',enabled:available&&(selection.items.length>0||selection.target==='revision'&&state.historyTotal>0),min:0,max:Math.max(0,selection.items.length-1),valueNumber:Math.max(0,selection.items.indexOf(selected)),normalized:selection.items.length>1?Math.max(0,selection.items.indexOf(selected))/(selection.items.length-1):0},
@@ -77,7 +77,7 @@ export const encoderRotations=Object.freeze([
 ]);
 const assignmentKind=state=>isMastering(state)?'mastering':'composition';
 export function defaultEncoderAssignments(kind){
- return kind==='mastering'?{0:{rotate:'seek',press:'play'},1:{rotate:'volume',press:'monitorMute'},2:{rotate:'song',press:'home'},3:{rotate:'version',press:'play'}}:{};
+ return {3:{rotate:'volume',press:'monitorMute'}};
 }
 export function validateEncoderAssignments(assignments){
  if(!assignments||typeof assignments!=='object'||Array.isArray(assignments))return 'エンコーダの割り当てが不正です';
@@ -107,7 +107,8 @@ export function buildEncoders(state){
  return Array.from({length:4},(_,index)=>{
   const {dial,press,role}=assignedEncoder(state,index);
   const fallback={title:press?.command?press.label:'',value:'—',enabled:false,min:0,max:1,valueNumber:0,normalized:0};
-  return {...(dial??fallback),index,enabled:Boolean(dial?.enabled||press?.enabled),hint:`回す: ${role?.label??'未割り当て'} · 押す: ${press?.label??'未割り当て'}`};
+  const enabled=Boolean(dial?.enabled||press?.enabled);
+  return {...(dial??fallback),index,enabled,hint:!enabled?'':`回す: ${role?.label??'未割り当て'} · 押す: ${press?.label??'未割り当て'}`};
  });
 }
 export function commandForEncoder(state,index,gesture,value=0){

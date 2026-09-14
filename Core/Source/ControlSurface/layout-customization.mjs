@@ -25,15 +25,18 @@ export function actionCatalogue(state,candidates=[]) {
  const add=(id,label,command,enabled=true,extra={})=>entries.push({id,label,command,enabled,secondary:'',icon:'',pressed:false,busy:false,...extra});
  add('none','未割り当て',null,false);
  const combined=stopOrHomeAction(state);add(combined.id,combined.label,combined.command,combined.enabled,{icon:combined.icon,assignmentLabel:'停止 / 先頭へ（自動切替）'});
- for(const [id,label] of [['play',state.playback?.state==='playing'?'一時停止':'再生'],['home','先頭へ'],['back5','5秒戻る'],['forward5','5秒進む']])add(id,label,{type:id},master?Boolean(song):tracks.length>0);
+ for(const [id,label] of [['play',state.playback?.state==='playing'?'一時停止':'再生'],['home','先頭へ'],['back5','5秒戻る'],['forward5','5秒進む']])add(id,label,{type:id},master?Boolean(song):tracks.length>0,id==='play'?{icon:state.playback?.state==='playing'?'Ⅱ':'▶'}:{});
  add('stop','停止',{type:'stop'},Boolean(state.playback&&!terminal.has(state.playback.state)));
- for(const [mode,label] of [['listen','再生'],['tracks','トラック'],['mastering','A/B比較'],['history','履歴'],['export','書き出し'],['routing','経路・FX']])add(`navigate:${mode}`,label,{type:'navigate',mode},mode==='modes'||has&&(mode!=='tracks'||!master)&&(mode!=='mastering'||master));
+ for(const [mode,label] of [['listen','再生'],['tracks','トラック'],['mastering','A/B比較'],['history','履歴'],['export','書き出し'],['routing','経路・FX']])add(`navigate:${mode}`,master&&mode==='export'?'書き出し':label,master&&mode==='export'?{type:'downloadMaster'}:{type:'navigate',mode},mode==='modes'||has&&(mode!=='tracks'||!master)&&(mode!=='mastering'||master));
  add('page:previous','前ページ',{type:'page',delta:-1},state.page>0);
  add('page:next','次ページ',{type:'page',delta:1},false); // A candidate must provide the actual page bound.
  add('back','戻る',{type:'back'});
+ add('cycleSelected','音を切替',{type:'cycleSelected'},master&&Boolean(song&&state.activeSlot),{icon:state.activeSlot==='A'?'B':'A'});
+ for(const delta of [-1,1])add(delta<0?'moveSong:previous':'moveSong:next',delta<0?'前の曲':'次の曲',{type:'moveSong',delta},master&&songs.length>1,{icon:delta<0?'↑':'↓'});
  for(const slot of ['A','B']){
   add(`assign${slot}`,`選択版を${slot}へ`,{type:`assign${slot}`},master&&Boolean(song&&state.versionId));
-  add(`switch${slot}`,`${slot}を聴く`,{type:`switch${slot}`},master&&Boolean(song?.comparison?.[slot.toLowerCase()]));
+  add(`cycle${slot}`,`${slot}の音を切替`,{type:`cycle${slot}`},master&&Boolean(song?.versions.length),{icon:slot,secondary:'次の音へ切替'});
+  add(`switch${slot}`,`${slot}を選択`,{type:`switch${slot}`},master&&Boolean(song?.comparison?.[slot.toLowerCase()]));
  }
  for(const [suffix,delta,label] of [['previous',-1,'前'],['next',1,'次']]){
   const songIndex=songs.findIndex(x=>x.id===state.songId);
@@ -53,7 +56,7 @@ export function actionCatalogue(state,candidates=[]) {
  return entries.map(entry=>{
   const candidate=entry.command&&candidates.find(p=>commandKey(p.command)===commandKey(entry.command));
   const resolved={...entry,...candidate,id:entry.id,command:entry.command};
-  return {...resolved,enabled:resolved.enabled!==false&&(!state.busy||safeBusy.has(entry.command?.type)),busy:Boolean(state.busy&&!safeBusy.has(entry.command?.type))};
+  return {...resolved,enabled:resolved.enabled!==false&&(!state.busy||safeBusy.has(entry.command?.type)),busy:Boolean(resolved.enabled!==false&&state.busy&&!safeBusy.has(entry.command?.type))};
  });
 }
 

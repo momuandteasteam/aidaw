@@ -1,5 +1,5 @@
 import {element,createDisplay,createWaveform} from './elements.mjs';
-export const manifest=Object.freeze({id:'transport',name:'Minimal Transport',contractVersion:1});
+export const manifest=Object.freeze({id:'transport',name:'Minimal Transport',version:'0.0.1',contractVersion:1});
 export function mount({root,dispatch,initialSnapshot}){
  const lifecycle=new AbortController(),{signal}=lifecycle,d=root.ownerDocument;root.classList.add('skin-transport');
  const display=createDisplay(root),controls=element(d,'div','transport-controls');root.append(controls);

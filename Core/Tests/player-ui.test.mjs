@@ -105,21 +105,25 @@ test('LCD priorities keep enabled labels and symbols legible across modes and se
  for(const pad of all)for(const pressed of [false,true]){
   const appearance=keyAppearance({...pad,enabled:true,pressed});
   assert.ok(contrast(appearance.ink,appearance.background)>=4.5,`${pad.label}: label contrast`);
-  if(appearance.priority==='utility')assert.ok(contrast(appearance.accent,appearance.background)>=4.5,`${pad.label}: symbol contrast`);
+  if(!pressed)assert.ok(contrast(appearance.accent,appearance.background)>=3,`${pad.label}: symbol contrast`);
  }
  const primary=type=>keyAppearance({command:{type},enabled:true});
  assert.equal(primary('play').priority,'primary');assert.equal(primary('stop').priority,'primary');
  assert.equal(primary('back5').priority,'transport');assert.equal(primary('save').priority,'utility');
  assert.equal(keyAppearance({command:{type:'mute'},enabled:true,pressed:true}).priority,'selected');
- assert.equal(keyAppearance({command:{type:'mute'},enabled:false,pressed:true}).priority,'selected');
+ assert.equal(keyAppearance({command:{type:'mute'},enabled:false,pressed:true}).priority,'disabled');
 });
 
-test('disabled keys retain their normal color and artwork while commands remain unavailable',()=>{
+test('disabled keys retain their symbol geometry but use neutral colors and reject commands',()=>{
  for(const type of ['play','stop','home']){
   const pad={label:type,command:{type},enabled:true};
-  assert.equal(renderKeySvg({...pad,enabled:false}),renderKeySvg(pad));
+  const disabled=renderKeySvg({...pad,enabled:false}),enabled=renderKeySvg(pad);
+  assert.notEqual(disabled,enabled);
+  const geometry=svg=>[...svg.matchAll(/(?:d|transform|x|y|width|height|rx)="([^"]*)"/g)].map(m=>m[0]);
+  assert.deepEqual(geometry(disabled),geometry(enabled));
+  assert.match(disabled,/#858B93/);
  }
  const state=createDeckState();
  assert.equal(commandForPad(state,7),null);
- assert.match(renderKeySvg(buildPads(state)[7]),/#22ed87/);
+ assert.match(renderKeySvg(buildPads(state)[7]),/#858B93/);
 });

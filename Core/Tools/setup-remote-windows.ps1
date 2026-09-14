@@ -38,9 +38,9 @@ $NodePath = Resolve-AidawExecutable $NodePath 'node.exe' 'Node.js'
 if ([string]::IsNullOrWhiteSpace($EnginePath)) {
   $EngineResolver = Join-Path $AidawRoot 'Core\Build\JS\Adapters\node\engine\engine-installation.js'
   $EnginePath = & $NodePath --input-type=module -e 'import {pathToFileURL} from "node:url"; const {resolveEngineExecutable}=await import(pathToFileURL(process.argv[1]).href); console.log(resolveEngineExecutable(process.argv[2]));' $EngineResolver $DataDir
-  if ($LASTEXITCODE -ne 0) { throw 'AIDAW engine is not installed. Run Core/Tools/setup.ps1 first.' }
+  if ($LASTEXITCODE -ne 0) { throw 'AIDAW Audio Engine is not installed. Run Core/Tools/setup.ps1 first.' }
 }
-$EnginePath = Resolve-AidawExecutable $EnginePath 'aidaw-engine.exe' 'AIDAW engine'
+$EnginePath = Resolve-AidawExecutable $EnginePath 'aidaw-engine.exe' 'AIDAW Audio Engine'
 $FfmpegPath = Resolve-AidawExecutable $FfmpegPath 'ffmpeg.exe' 'FFmpeg'
 $FfprobePath = Resolve-AidawExecutable $FfprobePath 'ffprobe.exe' 'FFprobe'
 $EntryPoint = Join-Path $AidawRoot 'Core\Build\JS\Server\http.js'

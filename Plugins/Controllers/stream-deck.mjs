@@ -1,7 +1,7 @@
 import {buildHardwareSurface,hardwareKeyAction,hardwareEncoderAction,hardwareTouchAction} from '../../Core/Source/ControlSurface/hardware-profile.mjs';
 export const profiles=[
-  {id:'stream-deck',name:'Stream Deck',transport:'bridge',status:'adapter_required',verifiedHardware:false},
-  {id:'stream-deck-plus',name:'Stream Deck +',transport:'bridge',status:'adapter_required',verifiedHardware:false}
+  {id:'stream-deck',name:'Stream Deck',transport:'bridge',status:'adapter_required',version:'0.0.1',verifiedHardware:false},
+  {id:'stream-deck-plus',name:'Stream Deck +',transport:'bridge',status:'adapter_required',version:'0.0.1',verifiedHardware:false}
 ];
 export function createAdapter(profile) {
   return {handleMidi(){return null;},getMappings(){return [];},setMappings(){},reset(){},learn(){return null;},

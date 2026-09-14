@@ -1,0 +1,16 @@
+# ファイルメニューと作品間の受け渡し
+
+読む条件: GUIの開く・音声インポート・他用途へ送る操作を変更するとき。
+正本範囲: desktopのファイル操作ワークフロー。既存application APIで実行する。
+
+Design status: ready
+
+「プロジェクトを開く」は現在のAIDAWホーム内の一覧dialogに統合し、フォルダ選択との二重入口を廃止する。一覧の更新・選択は既存処理、選択結果はactive_contextでAIへ共有する。
+
+「ファイルをインポート」は曲制作/マスタリングで有効。PNG/JPEG画像・音声をOS pickerで複数選択し、選択時のproject IDを固定、再生停止後にfile_importを順次呼ぶ。元ファイルを移動せず各作品assetsに取り込む。曲制作では素材として保管し、トラック/演奏を勝手に作らない。マスタリングではファイルごとにmastering_add_songで曲を追加する。追加前に最新revisionを取得し、成功分を残し失敗したファイル名を通知する。画像はartworkとして保存。複数画像はカバーにする1枚を選択し、それだけを取り込む。picker/画像選択取消は無変更。画像取込後はrevisionに関係なくartworkを再取得する。終了時にreloadし、AIからasset_listで参照できる。
+
+曲制作には「ステム分離へ送る」「マスタリングへ送る」。マスタリング先は新規か既存の同種プロジェクトを選べる。分離は新規作成し、既存stemを置換しない。名前/送信先の取消は無変更。送信時に再生を停止し、GUI作業mixの既存解決手順を通しrender_startで完成2mixを生成する。単一音声laneで順次処理し、job失敗/取消を成功扱いしない。成功WAVを送信先のsource assetとしてコピー。新規送信先はrender成功後に作成する。元作品・版を変更しない。分離はseparation_start、マスタリングはmastering_add_songを実行。成功時に送信先をGUIで開きAIへ共有する。途中失敗時も作成済み作品/assetを自動削除せず、再開判断のため送信先をエラーに表示する。
+
+検証: メニュー入口統合、種類別有効性、複数取り込み/取消/部分失敗、送信先選択/生成失敗/送信完了、既存revisionの更新を試験する。
+
+file_importはproject/pathを受け、画像は既存asset_import相当、音声はffmpegで48kHz stereo float WAVへ変換してsourceに取り込む。原ファイルもassets/originalsへhash名で保持する。変換は既存単一lane、tempはfinallyで掃除。AIにも共通APIで公開。画像はPNG/JPEGのみ、音声はWAV/AIFF/FLAC/MP3/M4A/AAC/OGG/Opus。未対応形式は拒否。

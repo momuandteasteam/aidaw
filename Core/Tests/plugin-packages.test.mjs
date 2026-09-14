@@ -26,9 +26,10 @@ test('managed packages reject incompatible manifests and resource escapes withou
 test('standard packages relocate all VST3s, reuse complete installs and preserve processor IDs and rendered audio',async t=>{
  const {api,service}=await fixture(t),build=resolve('Core/Build/Native');
  const previous=[];
- for(const name of ['GM','EQ','Limiter','Reverb']){
+ for(const name of ['GM','EQ','Limiter','Reverb','Imager','BassMono','Gain','Enhancer']){
   const scan=await api('catalog_scan',{format:'VST3',location:join(build,`starter/aidaw-starter-${name.toLowerCase()}_artefacts/Release/VST3/AIDAW ${name}.vst3`)});previous.push(scan.plugins[0]);
  }
+ assert.ok(previous.every(p=>p.version==='0.0.1'));
  await api('project_create',{project_id:'package-test',name:'Package migration',bpm:120,length_ticks:960});
  await api('project_apply',{project_id:'package-test',base_revision:0,request_id:'seed',operations:[{op:'add_track',track:{id:'piano',name:'Piano',instrument:{kind:'plugin',plugin_id:previous[0].plugin_id},effects:previous.slice(1).map(p=>({kind:'plugin',plugin_id:p.plugin_id})),notes:[{id:'note',tick:0,duration:480,pitch:60,velocity:90}]}}]});
  const render=async()=>{const job=await api('render_start',{project_id:'package-test',tail_seconds:1});const result=await service.wait(job.job_id);assert.equal(result.state,'succeeded',result.error);return result;};

@@ -21,7 +21,7 @@ export function setupTopBar({getState,dispatch,dispatchAction,chooseProject,onEr
   const button=event.target.closest('[data-command]');if(!button||button.disabled)return;
   const type=button.dataset.command;closeMenu(true);
   try{
-   if(type==='projectList'){$('projectListStatus').textContent='';listSignature='';drawProjects();openDialog('projectListDialog');}
+   if(type==='projectList'){await dispatch({type:'refresh'});$('projectListStatus').textContent='';listSignature='';drawProjects();openDialog('projectListDialog');}
    else if(type==='audioExport')await dispatchAction({type:'audio.export'});
    else await dispatch({type});
   }catch(error){onError(error);}
@@ -59,7 +59,8 @@ export function setupTopBar({getState,dispatch,dispatchAction,chooseProject,onEr
   finally{refreshing=false;$('projectListRefresh').disabled=false;}
  },{signal});
  function update(){
-  const state=getState();for(const button of menu.querySelectorAll('[data-needs-project]')){button.disabled=!state.document||Boolean(state.busy);}
+  const state=getState();const audio=menu.querySelector('[data-command="audioExport"]');if(audio)audio.textContent=state.document?.kind==='mastering'?'選択中の音を書き出す…':'音声を書き出す…';for(const button of menu.querySelectorAll('[data-needs-project]')){button.disabled=!state.document||Boolean(state.busy);}
+  for(const b of menu.querySelectorAll('[data-command]')){const type=b.dataset.command;if(['sendSeparation','sendMastering'].includes(type))b.disabled=!state.document||state.document.kind!=='composition'||Boolean(state.busy);if(type==='importAudio')b.disabled=!['composition','mastering'].includes(state.document?.kind)||Boolean(state.busy);}
   if(list.open)drawProjects();
  }
  update();return {update,dispose(){lifecycle.abort();}};
