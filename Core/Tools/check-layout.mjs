@@ -7,7 +7,7 @@ const files=['README.md','AGENTS.md','CLAUDE.md','LICENSE','NOTICE'];
 export async function checkLayout(root=workspaceRoot){
  const errors=[];
  for(const entry of await readdir(root,{withFileTypes:true})){
-  if(['.git','.github','.agents','.codex','.claude','.gitignore','.mcp.json','.DS_Store','.env'].includes(entry.name)||entry.name.startsWith('.env.'))continue;
+  if(['.git','.github','.agents','.codex','.claude','.gitignore','.gitattributes','.mcp.json','.DS_Store','.env'].includes(entry.name)||entry.name.startsWith('.env.'))continue;
   if(!(entry.isDirectory()?directories:files).includes(entry.name))errors.push(`Unexpected root entry: ${entry.name}`);
  }
  for(const [folder,allowed] of Object.entries({

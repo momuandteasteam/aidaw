@@ -5,6 +5,8 @@
 
 Design status: ready
 
+ソースの改行はGit属性でLFへ統一する。Windowsのcheckout時のCRLF化で文書budgetや設計hashを変えない。
+
 Core/Tools/build-distribution.mjsがCore/Build/Releaseへ版・OS・architecture別のZIPを作る。対象はmacOS arm64、Windows 11 x64。macOS x64は別のnativeビルドが必要。標準音源はGMだけ、既存8プラグイン（GMと7エフェクト）を含む。Audio EngineとVST3は対象OS上でコンパイルし、Electronだけ別OS用にパッケージしても完全な配布版とは呼ばない。
 
 配布のDesktopはビルド済みDECK、Nativeはengine executable・標準VST3・FluidR3 GM・ライセンスを持つ。利用者のProjects、設定、catalog実測値、絶対パス入りdesktop-install.json、認証情報を含めない。対象ソースと通知は対応する配布時点のものを保持する。公開前には対応ソースの提供方法、コード署名、公証を別途確認する。署名・公証なしの開発配布物を署名済みと表記しない。
