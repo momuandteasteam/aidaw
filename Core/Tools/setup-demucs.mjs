@@ -4,13 +4,14 @@ import {mkdir,writeFile,readFile,readdir,rm,rename,access} from 'node:fs/promise
 import {join,resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
+import {uvPythonEnvironment} from './setup/python-environment.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 export const demucsTerms={code_license:'MIT',weights_terms:'Provided only for scientific purposes; not covered by the code MIT license.',weights_terms_source:'https://github.com/facebookresearch/demucs/issues/327#issuecomment-1134828611'};
 function execute(cmd,args,env){return new Promise((resolve,reject)=>{const child=spawn(cmd,args,{stdio:'inherit',env});child.once('error',reject);child.once('exit',code=>code===0?resolve():reject(Error(`${cmd} exited ${code}`)));});}
 export async function setupDemucs(workspace=process.env.AIDAW_HOME??root){
  const home=join(resolve(workspace),'Plugins/Engines/demucs'),receipt=join(home,'installation.json');await mkdir(home,{recursive:true});await rm(receipt,{force:true});
  console.log(`[Demucs] Code: ${demucsTerms.code_license}. Model weights: ${demucsTerms.weights_terms}\n${demucsTerms.weights_terms_source}`);
- const env={...process.env,TORCH_HOME:join(home,'models')};
+ const env=uvPythonEnvironment(workspace,{...process.env,TORCH_HOME:join(home,'models')});
  const python=join(home,'venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
  try{await access(python);}catch{await execute('uv',['venv','--python','3.10',join(home,'venv')],env);}
  await execute('uv',['pip','install','--python',python,'demucs==4.0.1','torch==2.5.1','torchaudio==2.5.1','numpy<2','soundfile==0.13.1'],env);

@@ -22,7 +22,7 @@
 | R-012 | implemented。[starter試験](../../Core/Tests/starter.test.mjs)、[DSP数値試験](../../Core/Tests/effect-dsp.test.mjs)、[package試験](../../Core/Tests/plugin-packages.test.mjs) | 44.1/48/96kHz DSP、Enhancer参照差<0.2dB、全帯域M/S、chain0.0.1/macOS VST3保存復元・render・導入を確認。Windows/Linux実機・聴感評価は未実施。 |
 | R-013 | partial。[version.ts](../../Core/Source/Contracts/version.ts)、[application-contract.ts](../../Core/Source/Contracts/application-contract.ts)、[engine-contracts.ts](../../Core/Source/Contracts/engine-contracts.ts)。[contracts試験](../../Core/Tests/contracts.test.mjs)、[application-port試験](../../Core/Tests/application-port.test.mjs) | 非互換拒否・converter registryあり。作品／ZIP読込との統合は未完。音源状態を推測変換しない。 |
 | R-014 | implemented。[processing-queue.ts](../../Core/Source/Adapters/node/runtime/processing-queue.ts)、[audio-lane.ts](../../Core/Source/Adapters/node/runtime/audio-lane.ts)、[http-server.ts](../../Core/Source/Adapters/http/http-server.ts)。[queue試験](../../Core/Tests/queue.test.mjs)、[nonblocking試験](../../Core/Tests/nonblocking.test.mjs)、[http試験](../../Core/Tests/http.test.mjs) | 別process・取消・停止PID・再生中取得を検証。複数曲を並列化しない。 |
-| R-015 | implemented。[分離処理](../../Core/Source/Application/separation.ts)、[試験](../../Core/Tests/separation.test.mjs)。 | macOS ARM64で実Spleeterの4stem生成を確認。音質聴取評価・Windows実機は未確認。 |
+| R-015 | implemented。[分離](../../Core/Source/Application/separation.ts)、[試験](../../Core/Tests/separation.test.mjs)、[setup](../../Core/Tests/setup.test.mjs)。 | Mac ARM64 Spleeter、Win11 setup/両model load。未聴取。 |
 
 
 ## 最小実行
