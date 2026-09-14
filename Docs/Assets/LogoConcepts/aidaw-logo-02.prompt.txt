@@ -1,0 +1,6 @@
+Generation: built-in image_gen
+Use case: logo-brand
+Asset type: AIDAW logo exploration 02.
+Create one professional custom wordmark, exact text "AIDAW", A I D A W, all five letters one compact word, for a calm cyberpunk music production brand.
+Distinct direction: streamlined movement, subtly forward leaning 8 degrees, elongated medium weight letterforms with straight clean terminals and gently controlled curve on D. Clear A crossbars and readable W. A continuous short understated cyan horizontal incision ties rhythm across a portion of the dark navy wordmark. Elegant high-end studio software, energetic but composed. Not aggressive racing, no exaggerated spikes, not bubbly or pill-like. This should be a designed typographic logo, flat vector-like.
+Opaque pure white background, horizontal wide 3:1 canvas, centered and filling 70 percent width with generous white margins. Midnight navy typography with restrained cyan accent. Only AIDAW; no extra text, slogan, symbol, number, character, pads, UI, gradients, shadows, mockup, glow.

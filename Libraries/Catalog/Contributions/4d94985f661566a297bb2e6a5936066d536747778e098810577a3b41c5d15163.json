@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "plugin_parameter_observation",
+  "platform": "darwin",
+  "arch": "arm64",
+  "plugin": {
+    "plugin_id": "VST3:AIDAW:AIDAW Imager:7b9ea2b6",
+    "name": "AIDAW Imager",
+    "vendor": "AIDAW",
+    "version": "0.2.0",
+    "format": "VST3",
+    "parameters": [
+      {
+        "id": "113126854",
+        "name": "Width",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1215935590",
+        "name": "Bass width",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1652125811",
+        "name": "Bypass",
+        "unit": "",
+        "automatable": true,
+        "steps": 2
+      },
+      {
+        "id": "1815284338",
+        "name": "Bass Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      }
+    ]
+  }
+}

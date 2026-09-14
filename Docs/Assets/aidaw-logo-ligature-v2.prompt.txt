@@ -1,0 +1,15 @@
+Generation method: built-in image_gen
+
+Precisely redesign the ligature structure of the supplied AIDAW wordmark while retaining its substantial medium-bold/bold visual weight, navy and cyan palette, and calm geometric cyber-music style.
+Exact readable text: AIDAW, five uppercase letters as ONE compact word, never split by a word space.
+The user wants these specific ligature groups:
+- Connect the FIRST A with the I: share/join the A's right foot with the bottom of the adjacent upright I in an elegant, visibly deliberate AI ligature. The I must remain a distinct full-height vertical stroke, not disappear into the A.
+- Independently connect D, SECOND A and W into a coherent DAW ligature, with smart shared structural joints at D-to-A and A-to-W, while preserving the recognizable D bowl/counter, A crossbar/counter and W silhouette.
+- REMOVE the current I-to-D bottom loop/ligature: I and D must be distinct with a narrow normal optical letter gap, NOT a large word space. The AI and DAW ligature groups should still read together as AIDAW.
+- Add a playful but restrained cyan-colored top cap on the I: top approximately 15–20 percent of the I stem is cyan, separated from its navy lower stem by a very narrow diagonal negative-space cut. Keep uppercase I height matching other capitals. Do not turn it into lowercase i with a floating dot.
+- Remove the large cyan diagonal ribbon currently on the A/W joint. Color emphasis belongs to the I TOP, with at most one tiny secondary cyan notch in DAW.
+Letter design: full-bodied not thin, broad stable proportions, precise mostly straight strokes with modest corner softening. No razor-point spikes, no bubble-rounded geometry, no exaggerated tilt, no chrome or extrusions. Clean flat navy #102641 with cyan #22CEE7, no gradients. Logo is legible and purposeful with clever connected typography.
+Deliver ONE landscape 3:1 finished logo image, centered with comfortable padding, transparent background with real alpha, no background decoration, no character, no slogan, no icons, no panel, no fake checkerboard. Only AIDAW once.
+
+Background cleanup
+Keep this AIDAW logo completely unchanged. Replace ALL grey checkerboard background with pure opaque white #FFFFFF, including inside the letter counters and the small cut in the I. Do not generate transparency. No checkerboard anywhere. Preserve the exact AI and DAW ligature shapes, thick navy strokes, cyan top of I and cyan accent on A. Output one clean white-background wordmark with exactly the same composition.

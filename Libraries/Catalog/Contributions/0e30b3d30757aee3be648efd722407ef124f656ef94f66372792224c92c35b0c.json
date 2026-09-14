@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "plugin_parameter_observation",
+  "platform": "darwin",
+  "arch": "arm64",
+  "plugin": {
+    "plugin_id": "VST3:AIDAW:AIDAW Limiter:7b9ea5b6",
+    "name": "AIDAW Limiter",
+    "vendor": "AIDAW",
+    "version": "0.2.0",
+    "format": "VST3",
+    "parameters": [
+      {
+        "id": "1090594823",
+        "name": "Release ms",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1652125811",
+        "name": "Bypass",
+        "unit": "",
+        "automatable": true,
+        "steps": 2
+      },
+      {
+        "id": "660387005",
+        "name": "Ceiling dBFS",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "95852938",
+        "name": "Drive dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      }
+    ]
+  }
+}

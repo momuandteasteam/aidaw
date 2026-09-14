@@ -1,0 +1,8 @@
+Generation: built-in image_gen
+Use case: logo-brand
+Asset type: premium audio software wordmark concept
+Primary request: Create a sophisticated, precise high-end audio wordmark reading exactly "AIDAW", five contiguous uppercase letters without a word space. Light-to-medium stroke weight, refined custom upright sans serif typography. Architectural letterforms with restrained soft corners, subtle distinctive cuts, carefully balanced proportions. Calm contemporary cyberpunk character without theatrical futurism. Use a modest small cyan accent on the I, otherwise navy. Premium studio elegance, not a generic font.
+Scene/backdrop: solid opaque pure WHITE background, white all across the canvas.
+Composition: single centered horizontal wordmark on 3:1 landscape canvas with generous white margins. No separate icon.
+Style: crisp flat vector-like branding.
+Constraints: exact text A I D A W as one word AIDAW. No slogan, no explanation, no number, no character, no UI, no pads or deck buttons, no musical clip art, no glow, no gradient, no shadows, no metallic effects. Avoid exaggerated pointed racing letterforms and avoid bubbly round lettering.

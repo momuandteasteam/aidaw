@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "kind": "plugin_parameter_observation",
+  "platform": "darwin",
+  "arch": "arm64",
+  "plugin": {
+    "plugin_id": "VST3:AIDAW:AIDAW Gain:7b9ea0b7",
+    "name": "AIDAW Gain",
+    "vendor": "AIDAW",
+    "version": "0.2.0",
+    "format": "VST3",
+    "parameters": [
+      {
+        "id": "1652125811",
+        "name": "Bypass",
+        "unit": "",
+        "automatable": true,
+        "steps": 2
+      },
+      {
+        "id": "3165055",
+        "name": "Gain dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      }
+    ]
+  }
+}

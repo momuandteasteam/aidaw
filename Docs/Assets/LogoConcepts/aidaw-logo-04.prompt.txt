@@ -1,0 +1,9 @@
+Generation: built-in image_gen
+Use case: logo-brand
+Asset type: AIDAW music software wordmark concept
+Primary request: Create an extremely refined independent electronic music label inspired wordmark, with a wide, medium-bold custom geometric typeface. Exact text AIDAW, all five uppercase letters on one line without a space. Measured, confident, calm cyberpunk. Letterforms are mostly straight and broad with only slight corner softening, thoughtful negative space, disciplined visual rhythm. Tiny cyan inline cut details evoke musical timing. A should remain readable as A, I clearly I, D clearly D, A clearly A, W clearly W.
+Scene/backdrop: completely plain white background.
+Composition: one centered wordmark, wide 3:1 landscape canvas, generous white margins.
+Color palette: deep midnight navy, a very small amount of ice cyan.
+Style: flat crisp professional logo, vector-like graphics.
+Constraints: no character, no icon or symbol separate from lettering, no UI, no pads, no deck buttons, no music note clip art, no caption, no concept number, no extra words, no gradient, no shadows. Neither sharp aggressive racing/esports type nor bubbly overly rounded lettering. Only text "AIDAW".

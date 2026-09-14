@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "kind": "plugin_parameter_observation",
+  "platform": "darwin",
+  "arch": "arm64",
+  "plugin": {
+    "plugin_id": "VST3:AIDAW:AIDAW BassMono:7b9e9bb6",
+    "name": "AIDAW BassMono",
+    "vendor": "AIDAW",
+    "version": "0.2.0",
+    "format": "VST3",
+    "parameters": [
+      {
+        "id": "1652125811",
+        "name": "Bypass",
+        "unit": "",
+        "automatable": true,
+        "steps": 2
+      },
+      {
+        "id": "733630552",
+        "name": "Mono amount",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "798419949",
+        "name": "Mono cutoff Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      }
+    ]
+  }
+}

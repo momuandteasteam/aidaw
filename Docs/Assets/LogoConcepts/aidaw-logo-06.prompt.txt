@@ -1,0 +1,9 @@
+Generation: built-in image_gen
+Use case: logo-brand
+Asset type: flowing contemporary music software brand wordmark
+Primary request: Design the exact uppercase word "AIDAW" as a single connected visual system, all five letters readable, one continuous name. A custom medium-weight geometric ligature wordmark where A to I and D to A subtly connect with clean horizontal joins, suggesting a continuous sound signal. Quiet, mature cyberpunk studio identity. Balanced straight lines and shallow curves, carefully controlled corner radii. No swollen bubble curves and no sharp knives or racing motifs. A restrained cyan connection line through one short join is the only accent.
+Scene/backdrop: solid opaque pure WHITE background, white all across the canvas.
+Composition: single centered wordmark on wide 3:1 landscape canvas. Nothing except the five letters AIDAW and white space.
+Palette: midnight navy main lettering with tiny ice-cyan connection accent.
+Style: exceptionally polished flat vector-like logo design. No texture or shading.
+Constraints: AIDAW spelled A I D A W, no spaces between AI and DAW. Do not add letters or turn I into an unreadable symbol. No icon, character, UI, pad, deck buttons, caption, numbering, music clipart, waveform outside the wordmark, gradients, shadow or 3D.

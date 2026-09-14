@@ -1,0 +1,6 @@
+Generation: built-in image_gen
+Use case: logo-brand
+Asset type: AIDAW logo exploration 03.
+Create a single exact uppercase wordmark "AIDAW" for an advanced AI music production brand. A I D A W, five letters in one uninterrupted word.
+Distinct designer direction: custom monospaced technical typography inspired by precise digital instrument lettering, upright and slightly narrow, medium strokes and firm square ends. The I has short horizontal bars top and bottom. A has flat truncated apex with small chamfers, D is rectangular with subtly clipped right corners, W has firm geometric structure. Very restrained cyan small cut or detail on the I. Sophisticated quiet cyberpunk, visually mathematical, readable, professional. Not racing, spikes, bubble letters or soft pills.
+Flat solid midnight navy and tiny cyan detail. Plain pure opaque white background. 3:1 wide horizontal canvas. One centered wordmark occupies 68 percent width, plentiful white breathing space. No other text, comparisons, numbered labels, slogans, symbols, character, UI, control pads, glow, shadows, texture, mockup.

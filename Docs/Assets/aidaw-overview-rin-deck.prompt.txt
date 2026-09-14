@@ -1,0 +1,9 @@
+Generation method: built-in image_gen
+
+Final edit prompt:
+Use case: precise-object-edit.
+Input image 1 is the TARGET infographic. Input image 2 is a REFERENCE screenshot of the real AIDAW DECK UI, not an edit target.
+Change ONLY the AIDAW DECK card in the middle column, second card from top. Preserve every other part of image 1 exactly, especially Rin, column boundaries, all arrows, all other cards and Japanese wording.
+Inside that card replace the generic blue monitor with a recognizable faithful miniaturized rendering of the actual software screenshot in image 2. The actual design is a flat dark charcoal app panel, compact top menu and track/time display, a FIVE COLUMN by THREE ROW grid of square pads (15 pads), green play pad, blue A and orange B pads, a dark thin two-row comparison strip beneath the pads, and FOUR circular rotary knobs along the bottom. Reproduce this distinctive silhouette, spatial arrangement, flat matte colors and pad icon placement. It must look like the real app, NOT a generic monitor with play/stop, NOT hardware on a stand, NOT a mixing console with sliders, NOT a piano, NOT a 3x3 keypad.
+Keep the card itself at the same outer position and size. Use the left approximately 115 pixels wide area for a portrait miniature app screenshot, fitting within card with small padding. The tiny UI lettering does not need to be readable; preserve recognizable pad arrangement and colored controls. On the right retain large exact heading 「AIDAW DECK」 and subtext 「再生・停止・試聴・書き出し」; adjust heading font slightly only if necessary to avoid overlap. Avoid adding any words such as UI or reference. Keep all arrows and the card border unobstructed.
+This is a surgical icon-to-real-UI-thumbnail replacement, no global redesign.

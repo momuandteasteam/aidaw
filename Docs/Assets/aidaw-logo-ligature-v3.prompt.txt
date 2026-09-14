@@ -1,0 +1,13 @@
+Generation method: built-in image_gen
+
+Redesign the I–D junction of this AIDAW logo according to a precise typography request. Use reference for weight/palette only. Output ONE finished wordmark "AIDAW" on clean WHITE opaque background, landscape 3:1.
+CRITICAL LETTER CONSTRUCTION:
+- The I is a FULL HEIGHT solid ICE CYAN vertical stem, entirely cyan from top to bottom, not just a cap. Use #23CDE7.
+- Directly adjacent to it is the D's own FULL HEIGHT dark navy left vertical stem.
+- Both stems must retain their OWN full thickness: I cyan stem width about 90 units and D navy stem width about 90 units, so their combined I–D stem block is about 180 units wide, not collapsed into one single stroke. The D bowl then extends to the right as usual.
+- These two stems feel fused as a paired unit, but not completely joined: use a very fine white vertical breathing seam between them, about 5% of one stem width. Round the facing top and bottom corners slightly, so the seam opens gently at its ends and the individual two strokes can still be perceived. Two close rounded rectangular stems side by side, BOTH substantial and full height. Do not insert a big letter space.
+- This is a clear I + D ligature, not a U shape, not a single cyan D stem, not an ID monogram replacing letters. D must have a fully closed counter and obvious bowl. The I must read as a separate cyan capital I closely fused to D. NO diagonal cut through the I, no separate dot.
+- First A remains navy, normal optical gap to cyan I: REMOVE the previous A-to-I connected lower foot so cyan I can stand as a full vertical stroke.
+- DAW remains optically cohesive; modest A-W connection allowed, but keep all five letters legible and full weight. Remove the cyan triangle from the second A, so ONLY the entire I is cyan.
+Rest of wordmark: bold broad geometric navy letters, modest corner rounding, readable A crossbars, calm futuristic custom typography, no razor tips, no bubble font, no thin strokes, no chrome, no extrusion, no gradients. Flat navy #102641 with cyan I, WHITE background with no checkerboard, no transparency attempt. Logo centered at comfortable margins. No character, no icon, no tagline. Exact five letters AIDAW once.
+Prioritize the requested double-width paired I and D vertical strokes with a narrow rounded seam.

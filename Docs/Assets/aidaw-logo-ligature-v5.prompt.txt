@@ -1,0 +1,10 @@
+Generation method: built-in image_gen
+
+Refine the supplied AIDAW wordmark into a more dynamic but still calm and substantial custom ligature logo. This is a controlled evolution of this exact design, not a new unrelated font.
+Preserve: all five uppercase letters AIDAW readable as one word; full-height entirely cyan I directly TOUCHING the dark navy D with no white gap; retain the combined width of those two full stems, not collapse them into one. The other letters remain deep navy. Flat navy and cyan, clean white background.
+Requested refinements:
+1. Apply a modest coherent forward slant, approximately 10 degrees, across the whole word. It should feel moving to the right without racing-logo aggression.
+2. Make W visibly slimmer and more elegant: reduce its horizontal width about 18%, and make its stroke weight slightly lighter than current (about 85–90% of the other strokes), while keeping it confident and easily readable. Do not make the whole font thin.
+3. Sculpt the ligature between the second A and W. Their shared junction should flow naturally. Give the outer terminal of the A–W group a purposeful upward-right direction: the far-right upper tip of W extends subtly up and right as a short sleek terminal with a clipped or softly chamfered end. Use only a restrained 6–8% extension beyond cap height. The overall outer contour guides the eye toward upper-right. No long blade, no exaggerated spear, no detached swoosh or arrow icon. The A/W join remains visibly connected and intentional.
+4. Keep small rounded corners on the I–D touching area and on inner junctions; other terminals may be precisely cut. Balance stable bold type with this directional ending. First A and D remain broad, their counters open.
+No chrome, no 3D, no gradients, no neon glow, no tiny extra marks, no text beyond AIDAW, no icon or character. No checkerboard or transparency: PURE WHITE opaque background. Single landscape 3:1 final wordmark centered with generous margins so the new terminal isn't cropped.

@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "kind": "plugin_parameter_observation",
+  "platform": "darwin",
+  "arch": "arm64",
+  "plugin": {
+    "plugin_id": "VST3:AIDAW:AIDAW EQ:7b9e9eba",
+    "name": "AIDAW EQ",
+    "vendor": "AIDAW",
+    "version": "0.2.0",
+    "format": "VST3",
+    "parameters": [
+      {
+        "id": "103891002",
+        "name": "Mid Q",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1050615113",
+        "name": "Low shelf dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1050615261",
+        "name": "Low shelf Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1073137109",
+        "name": "Mid bell dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1073137257",
+        "name": "Mid bell Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1652125811",
+        "name": "Bypass",
+        "unit": "",
+        "automatable": true,
+        "steps": 2
+      },
+      {
+        "id": "1810177296",
+        "name": "Band 3 Q",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1810178257",
+        "name": "Band 4 Q",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1810179218",
+        "name": "Band 5 Q",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1810180179",
+        "name": "Band 6 Q",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "1810181140",
+        "name": "Band 7 Q",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "280921023",
+        "name": "Band 3 dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "280921171",
+        "name": "Band 3 Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "280950814",
+        "name": "Band 4 dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "280950962",
+        "name": "Band 4 Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "280980605",
+        "name": "Band 5 dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "280980753",
+        "name": "Band 5 Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "281010396",
+        "name": "Band 6 dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "281010544",
+        "name": "Band 6 Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "281040187",
+        "name": "Band 7 dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "281040335",
+        "name": "Band 7 Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "915478587",
+        "name": "High shelf dB",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      },
+      {
+        "id": "915478735",
+        "name": "High shelf Hz",
+        "unit": "",
+        "automatable": true,
+        "steps": 2147483647
+      }
+    ]
+  }
+}

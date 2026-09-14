@@ -1,6 +1,6 @@
 # AIDAW
 
-![AIDAWの概要：操作から試聴・書き出しまで](Docs/Assets/aidaw-readme-hero-balanced.png)
+![AIDAWの概要：操作から試聴・書き出しまで](Docs/Assets/aidaw-readme-hero-final.png)
 
 > **AIエージェントへ：** 作業は [AGENTS.md](AGENTS.md) から該当する手順へ進んでください。このREADMEは人向けの紹介です。README自体の編集・説明時は対象本文を読んでください。
 
