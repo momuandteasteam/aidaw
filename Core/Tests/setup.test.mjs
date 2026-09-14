@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,mkdir,writeFile,readFile,rm} from 'node:fs/promises';
-import {join} from 'node:path';
+import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {parse} from 'smol-toml';
 import {planConfigs,applyConfigs} from '../Tools/setup/config.mjs';
+import {uvPythonEnvironment} from '../Tools/setup/python-environment.mjs';
 async function fixture(t){const root=await mkdtemp(join(tmpdir(),'aidaw setup 日本語 '));t.after(()=>rm(root,{recursive:true,force:true}));return {root,client:'both',node:process.execPath,env:{AIDAW_HOME:join(root,'data'),AIDAW_ENGINE:join(root,'engine'),AIDAW_FFMPEG:'/path with space/ffmpeg',AIDAW_FFPROBE:'/path/ffprobe'}};}
 test('setup merges both configurations, backs up exact originals and is idempotent',async t=>{
  const options=await fixture(t);await mkdir(join(options.root,'.codex'));const toml='# original comment\nmodel = "preserve-me"\n[mcp_servers.other]\ncommand="other"\n';const json=JSON.stringify({mcpServers:{other:{command:'other'}},custom:'keep'});
@@ -43,4 +44,10 @@ test('Antigravity rejects remote replacement and unmanaged rule collisions',asyn
  const options={...await fixture(t),client:'antigravity'};await mkdir(join(options.root,'.agents/rules'),{recursive:true});const path=join(options.root,'.agents/mcp_config.json');
  await writeFile(path,JSON.stringify({mcpServers:{aidaw:{serverUrl:'https://example.com/mcp'}}}));await assert.rejects(planConfigs(options),/not a local server/);
  await writeFile(path,'{}');await writeFile(join(options.root,'.agents/rules/aidaw.md'),'Personal rule');await assert.rejects(planConfigs(options),/not managed/);assert.equal(await readFile(path,'utf8'),'{}');
+});
+test('separation Python is isolated per workspace unless explicitly configured',()=>{
+ const workspace=join('C:','AIDAW 日本語'),inherited={PATH:'tools'};
+ const defaultEnv=uvPythonEnvironment(workspace,inherited);
+ assert.equal(defaultEnv.UV_PYTHON_INSTALL_DIR,join(resolve(workspace),'Plugins/Engines/python'));assert.equal(inherited.UV_PYTHON_INSTALL_DIR,undefined);
+ const explicit=join('D:','shared uv python');assert.equal(uvPythonEnvironment(workspace,{...inherited,UV_PYTHON_INSTALL_DIR:explicit}).UV_PYTHON_INSTALL_DIR,explicit);
 });
