@@ -43,7 +43,7 @@
   "devDependencies": {
     "@electron/packager": "20.3.0",
     "@types/node": "22.19.15",
-    "electron": "44.3.0",
+    "electron": "44.9.1",
     "smol-toml": "^1.8.0",
     "typescript": "5.9.3"
   }
